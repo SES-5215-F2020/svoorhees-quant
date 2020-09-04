@@ -1,0 +1,19 @@
+---
+title: "Assignment 1"
+author: "SVoorhees"
+date: "9/4/2020"
+output: html_document
+---
+
+# Level One Title 
+## Levetl Two Header
+
+More text. 
+
+```{r}
+sage <- 4.75
+harlan <-12
+harlan - sage 
+```
+
+That was the answer! 
