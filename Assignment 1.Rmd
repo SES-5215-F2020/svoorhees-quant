@@ -17,3 +17,7 @@ harlan - sage
 ```
 
 That was the answer! 
+
+
+global user.email "svoorhees@gsd.harvard.edu"
+global user.name "Svoorhees"
