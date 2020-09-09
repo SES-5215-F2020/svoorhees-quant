@@ -4,11 +4,6 @@ author: "SVoorhees"
 date: "9/9/2020"
 output: html_document
 ---
-```{r, message=FALSE}
- library(tidycensus)
-library(tidyverse)
-
-```
 
 ## Overview & Goals
 While compiling this dataset, I had in mind the question of how New Mexico is developing, specifically how New Mexico is building housing. New Mexico--unlike its neighbor Arizona--has seen relatively modest urban development in the last few decades, while maintaining a relatively stagnant overall population. However, there is nonetheless considerable development happening. In this course I would love to use the assignments to explore this development and provide insight into the questions of where is New Mexico developing, who is inhabiting these new developments, and what notable infrastructure/jobs are in these areas. 
@@ -38,14 +33,25 @@ To answer the above question I have chosen to look at census track data using th
 
 ## Process
 
-To develop this DataSet I searched through household level variables on the ACS1 survey. After selecting variables that I believed would help me assess both the construction of new housing and demographic information about the inhabitants, I pulled them into one dataset using the get_pums() function. I limited my search to observations from NM(State Code: 35, PUMA's 00100-01200). 
+To develop this dataset I first downloaded the tidycensus and tidyverse libraries. I then searched through household level variables on the ACS1 survey. After selecting variables that I believed would help me assess both the construction of new housing and demographic information about the inhabitants, I pulled them into one dataset using the get_pums() function. I limited my search to observations from NM(State Code: 35, PUMA's 00100-01200). 
 
 I modified a few of the variables as follows:
+
 1. I mutated 'When Structure First Built' into the binary variable 'struct_old' to indicate whether or not the house was built more than 50 years ago. 
+
 2. I mutated 'When Structure First Built' into a binary variable 'struct_last_twenty' to indicate whether or not the house was built in the last 20 years. 
 
-**Note:** In the preview of my dataset, the data contains N/A and many 0's. When the table is expanded in new tab it shows desired labels and values. 
 
+
+##### Downloading Libraries:
+```{r, message=FALSE}
+ library(tidycensus)
+library(tidyverse)
+
+```
+
+
+##### Specifying Variables
 ```{r, message=FALSE, results='hide'}
 
 assignment1_vars <- get_pums(variables = c("YBL", 
@@ -91,6 +97,8 @@ select(YBL_label, struct_old, struct_last_twenty, FHINCP ,RAC1P, JWMNP, MRGP, RN
 ```{r}
 
 ```
+
+**Note:** In the preview of my dataset below, the data contains N/A and b values. When the table is expanded in new tab it shows desired labels and values. 
 
 ```{r}
 assignment1_vars 

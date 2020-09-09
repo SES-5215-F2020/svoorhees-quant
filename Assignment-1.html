@@ -369,8 +369,6 @@ summary {
 </div>
 
 
-<pre class="r"><code> library(tidycensus)
-library(tidyverse)</code></pre>
 <div id="overview-goals" class="section level2">
 <h2>Overview &amp; Goals</h2>
 <p>While compiling this dataset, I had in mind the question of how New Mexico is developing, specifically how New Mexico is building housing. New Mexico–unlike its neighbor Arizona–has seen relatively modest urban development in the last few decades, while maintaining a relatively stagnant overall population. However, there is nonetheless considerable development happening. In this course I would love to use the assignments to explore this development and provide insight into the questions of where is New Mexico developing, who is inhabiting these new developments, and what notable infrastructure/jobs are in these areas.</p>
@@ -380,7 +378,7 @@ library(tidyverse)</code></pre>
 <p>To answer the above question I have chosen to look at census track data using the ACS-1 Year Summary because it provides more direct information about construction.</p>
 <ol style="list-style-type: decimal">
 <li>Household Income || <strong>FHINCP</strong> || Categorical</li>
-<li>When Structure was First Built –&gt; Is the structure new? || <strong>YBL</strong> || Categorical</li>
+<li>When Structure was First Built || <strong>YBL</strong> || Categorical</li>
 <li>Majority Race || <strong>RAC1P</strong> || Categorical</li>
 <li>First Mortgage Payment || <strong>MRGP</strong> || Continuous</li>
 <li>Monthly Rent|| <strong>RNTP</strong> || Continuous</li>
@@ -391,9 +389,19 @@ library(tidyverse)</code></pre>
 </div>
 <div id="process" class="section level2">
 <h2>Process</h2>
-<p>To develop this DataSet I searched through household level variables on the ACS1 survey. After selecting variables that I believed would help me assess both the construction of new housing and demographic information about the inhabitants, I pulled them into one dataset using the get_pums() function. I limited my search to observations from NM(State Code: 35, PUMA’s 00100-01200).</p>
-<p>I modified a few of the variables as follows: 1. I mutated ‘When Structure First Built’ into the binary variable ‘struct_old’ to indicate whether or not the house was built more than 50 years ago. 2. I mutated ‘When Structure First Built’ into a binary variable ‘struct_last_twenty’ to indicate whether or not the house was built in the last 20 years.</p>
-<p><strong>Note:</strong> In the preview of my dataset, the data contains N/A and many 0’s. When the table is expanded in new tab it shows desired labels and values.</p>
+<p>To develop this dataset I first downloaded the tidycensus and tidyverse libraries. I then searched through household level variables on the ACS1 survey. After selecting variables that I believed would help me assess both the construction of new housing and demographic information about the inhabitants, I pulled them into one dataset using the get_pums() function. I limited my search to observations from NM(State Code: 35, PUMA’s 00100-01200).</p>
+<p>I modified a few of the variables as follows:</p>
+<ol style="list-style-type: decimal">
+<li><p>I mutated ‘When Structure First Built’ into the binary variable ‘struct_old’ to indicate whether or not the house was built more than 50 years ago.</p></li>
+<li><p>I mutated ‘When Structure First Built’ into a binary variable ‘struct_last_twenty’ to indicate whether or not the house was built in the last 20 years.</p></li>
+</ol>
+<div id="downloading-libraries" class="section level5">
+<h5>Downloading Libraries:</h5>
+<pre class="r"><code> library(tidycensus)
+library(tidyverse)</code></pre>
+</div>
+<div id="specifying-variables" class="section level5">
+<h5>Specifying Variables</h5>
 <pre class="r"><code>assignment1_vars &lt;- get_pums(variables = c(&quot;YBL&quot;, 
                                           &quot;FHINCP&quot;,
                                           &quot;RAC1P&quot;, 
@@ -430,6 +438,7 @@ mutate(struct_last_twenty = (YBL_label == &quot;2008&quot; |
                                YBL_label == &quot;2018&quot; )) %&gt;%
 
 select(YBL_label, struct_old, struct_last_twenty, FHINCP ,RAC1P, JWMNP, MRGP, RNTP, NP, PUMA)</code></pre>
+<p><strong>Note:</strong> In the preview of my dataset below, the data contains N/A and b values. When the table is expanded in new tab it shows desired labels and values.</p>
 <pre class="r"><code>assignment1_vars </code></pre>
 <pre><code>## # A tibble: 16,054 x 10
 ##    YBL_label struct_old struct_last_twe~ FHINCP RAC1P JWMNP  MRGP  RNTP    NP
@@ -445,6 +454,7 @@ select(YBL_label, struct_old, struct_last_twenty, FHINCP ,RAC1P, JWMNP, MRGP, RN
 ##  9 N/A (GQ)  FALSE      FALSE            b      1         0     0     0     1
 ## 10 N/A (GQ)  FALSE      FALSE            b      1         0     0     0     1
 ## # ... with 16,044 more rows, and 1 more variable: PUMA &lt;dbl&gt;</code></pre>
+</div>
 </div>
 <div id="saving-to-csv" class="section level2">
 <h2>Saving to CSV</h2>
