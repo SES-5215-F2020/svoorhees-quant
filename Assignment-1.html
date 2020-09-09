@@ -364,22 +364,110 @@ summary {
 
 <h1 class="title toc-ignore">Assignment 1</h1>
 <h4 class="author">SVoorhees</h4>
-<h4 class="date">9/4/2020</h4>
+<h4 class="date">9/9/2020</h4>
 
 </div>
 
 
-<div id="level-one-title" class="section level1">
-<h1>Level One Title</h1>
-<div id="levetl-two-header" class="section level2">
-<h2>Levetl Two Header</h2>
-<pre class="r"><code> Harlan &lt;- 23
- Sage &lt;- 25
- 
- #How much older?
- Sage-Harlan</code></pre>
-<pre><code>## [1] 2</code></pre>
+<pre class="r"><code> library(tidycensus)
+library(tidyverse)</code></pre>
+<div id="overview-goals" class="section level2">
+<h2>Overview &amp; Goals</h2>
+<p>While compiling this dataset, I had in mind the question of how New Mexico is developing, specifically how New Mexico is building housing. New Mexico–unlike its neighbor Arizona–has seen relatively modest urban development in the last few decades, while maintaining a relatively stagnant overall population. However, there is nonetheless considerable development happening. In this course I would love to use the assignments to explore this development and provide insight into the questions of where is New Mexico developing, who is inhabiting these new developments, and what notable infrastructure/jobs are in these areas.</p>
 </div>
+<div id="variables-units-used" class="section level2">
+<h2>Variables &amp; Units Used</h2>
+<p>To answer the above question I have chosen to look at census track data using the ACS-1 Year Summary because it provides more direct information about construction.</p>
+<ol style="list-style-type: decimal">
+<li>Household Income || <strong>FHINCP</strong> || Categorical</li>
+<li>When Structure was First Built –&gt; Is the structure new? || <strong>YBL</strong> || Categorical</li>
+<li>Majority Race || <strong>RAC1P</strong> || Categorical</li>
+<li>First Mortgage Payment || <strong>MRGP</strong> || Continuous</li>
+<li>Monthly Rent|| <strong>RNTP</strong> || Continuous</li>
+<li>Travel Time To Work || <strong>JWMNP</strong> || Continuous</li>
+<li>Location (PUMA) || <strong>PUMA</strong>|| Categorical</li>
+<li>Number of Persons in Household || <strong>NP</strong>|| Continuous</li>
+</ol>
+</div>
+<div id="process" class="section level2">
+<h2>Process</h2>
+<p>To develop this DataSet I searched through household level variables on the ACS1 survey. After selecting variables that I believed would help me assess both the construction of new housing and demographic information about the inhabitants, I pulled them into one dataset using the get_pums() function. I limited my search to observations from NM(State Code: 35, PUMA’s 00100-01200).</p>
+<p>I modified a few of the variables as follows: 1. I mutated ‘When Structure First Built’ into the binary variable ‘struct_old’ to indicate whether or not the house was built more than 50 years ago. 2. I mutated ‘When Structure First Built’ into a binary variable ‘struct_last_twenty’ to indicate whether or not the house was built in the last 20 years.</p>
+<p><strong>Note:</strong> In the preview of my dataset, the data contains N/A and many 0’s. When the table is expanded in new tab it shows desired labels and values.</p>
+<pre class="r"><code>assignment1_vars &lt;- get_pums(variables = c(&quot;YBL&quot;, 
+                                          &quot;FHINCP&quot;,
+                                          &quot;RAC1P&quot;, 
+                                          &quot;JWMNP&quot;,
+                                          &quot;MRGP&quot;,
+                                          &quot;RNTP&quot;,
+                                          &quot;NP&quot;, 
+                                          &quot;PUMA&quot;),
+                state= &quot;NM&quot;,
+                year =2018,
+                survey =&quot;acs1&quot;,
+                recode=TRUE) %&gt;%
+                mutate(PUMA = as.numeric(PUMA))%&gt;%
+                filter(PUMA&gt; 00100 &amp; PUMA &lt;01200)%&gt;%
+
+  
+  
+    
+mutate(struct_old = (YBL_label == &quot;1939 or earlier&quot; |
+                       YBL_label == &quot;1940 to 1949&quot; | 
+                       YBL_label == &quot;1950 to 1959&quot; | 
+                       YBL_label == &quot;1960 to 1969&quot; )) %&gt;%
+  
+mutate(struct_last_twenty = (YBL_label == &quot;2008&quot; |
+                               YBL_label == &quot;2009&quot; |
+                               YBL_label == &quot;2010&quot; |
+                               YBL_label == &quot;2011&quot; |
+                               YBL_label == &quot;2012&quot; |
+                               YBL_label == &quot;2013&quot; |
+                               YBL_label == &quot;2014&quot; |
+                               YBL_label == &quot;2015&quot; |
+                               YBL_label == &quot;2016&quot; |
+                               YBL_label == &quot;2017&quot; |
+                               YBL_label == &quot;2018&quot; )) %&gt;%
+
+select(YBL_label, struct_old, struct_last_twenty, FHINCP ,RAC1P, JWMNP, MRGP, RNTP, NP, PUMA)</code></pre>
+<pre class="r"><code>assignment1_vars </code></pre>
+<pre><code>## # A tibble: 16,054 x 10
+##    YBL_label struct_old struct_last_twe~ FHINCP RAC1P JWMNP  MRGP  RNTP    NP
+##    &lt;chr&gt;     &lt;lgl&gt;      &lt;lgl&gt;            &lt;chr&gt;  &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+##  1 N/A (GQ)  FALSE      FALSE            b      1         0     0     0     1
+##  2 N/A (GQ)  FALSE      FALSE            b      1         0     0     0     1
+##  3 N/A (GQ)  FALSE      FALSE            b      9         0     0     0     1
+##  4 N/A (GQ)  FALSE      FALSE            b      1         0     0     0     1
+##  5 N/A (GQ)  FALSE      FALSE            b      8         0     0     0     1
+##  6 N/A (GQ)  FALSE      FALSE            b      1         0     0     0     1
+##  7 N/A (GQ)  FALSE      FALSE            b      9         0     0     0     1
+##  8 N/A (GQ)  FALSE      FALSE            b      1         0     0     0     1
+##  9 N/A (GQ)  FALSE      FALSE            b      1         0     0     0     1
+## 10 N/A (GQ)  FALSE      FALSE            b      1         0     0     0     1
+## # ... with 16,044 more rows, and 1 more variable: PUMA &lt;dbl&gt;</code></pre>
+</div>
+<div id="saving-to-csv" class="section level2">
+<h2>Saving to CSV</h2>
+<pre class="r"><code>write_csv(assignment1_vars, &quot;assignment1_vars.csv&quot;)</code></pre>
+</div>
+<div id="variables" class="section level2">
+<h2>Variables</h2>
+<p>Keeping these variables around for reference</p>
+<pre class="r"><code>person_vars_2018 &lt;- pums_variables %&gt;%
+  distinct(year, survey, var_code, 
+           var_label, data_type, level) %&gt;%
+  filter(level == &quot;person&quot;, year == 2018, survey == &quot;acs1&quot;)
+
+hh_vars_2018 &lt;- pums_variables %&gt;%
+  distinct(year, survey, var_code, 
+           var_label, data_type, level) %&gt;%
+  filter(level == &quot;housing&quot;, year == 2018, survey == &quot;acs1&quot;)</code></pre>
+</div>
+<div id="next-steps" class="section level2">
+<h2>Next Steps</h2>
+<p>My next step for this data are:</p>
+<p>1.Bringing in the <strong>names of the PUMA labels</strong> (ex. Albuquerque City (Northeast Heights), Dona Ana (County))</p>
+<p>2.Understanding <strong>how to manage mixing person-level data with household-level data</strong>. (ex. I’m currently running into the issue where I see 13 observations of <em>what I’m assuming</em> is a 13-person household in Central Albuquerque. All 13 observations are in a 13-person household built in 1960-1969 with no reported rent/mortgage, the only variance among the observations is the JWNMP variable.</p>
 </div>
 
 
