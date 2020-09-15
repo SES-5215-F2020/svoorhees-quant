@@ -1,0 +1,66 @@
+---
+title: "Ass2_Quant"
+author: "Sage Grey"
+date: "9/14/2020"
+output: html_document
+---
+
+##### Downloading Libraries and Showing Variables:
+```{r}
+ library(tidycensus)
+library(tidyverse)
+library(ggplot2)
+```
+
+####  Load Household Data Set & Housekeeping
+```{r}
+# Load CSV
+household_data <- read_csv("assignment1_vars.csv")
+#Remove Scientific Notation
+options(scipen = 999)
+```
+
+I Realized that I wanted to filter my data set to remove negative values for income, so instead of loading the csv, I am loading variables using the get_pums method. Came to this conclusion that I should filter for non negative values when talking with Emma Colley. I did this in the code from Assignment 1 so it is not shown in this R Markdown document. 
+
+
+##Pulling Summary
+```{r}
+HINCP_summary <- summary(household_data$HINCP)
+
+HINCP_summary
+HINCP_summary["Max."]
+```
+## Another Way of Pulling Summary
+```{r}
+mean(household_data$HINCP)
+quantile(household_data$HINCP)
+sd(household_data$HINCP)
+```
+
+## 95=percent confidence interval
+```{r}
+confidence_int <-t.test(household_data$HINCP)
+confidence_int
+
+## Upper and Lower Limits
+confidence_int$conf.int[1]
+confidence_int$conf.int[2]
+```
+
+## Historgram 
+```{r}
+hist(household_data$HINCP)
+```
+## Histogram in GGPLOT
+```{r}
+ggplot(household_data, aes(x=HINCP)) +
+  geom_histogram(color="green", fill ="purple", alpha =.5)
+```
+##Categorical Variable
+```{r}
+#Race
+unique(household_data$RAC1P_label)
+#Hispanic
+unique(household_data$HISP_label)
+```
+
