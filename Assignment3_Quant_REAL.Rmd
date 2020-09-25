@@ -1,0 +1,695 @@
+---
+title: "Assignment 2: Quantitive Analysis"
+Date: 9/20/2020
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+    theme: cosmo
+code_folding: hide
+
+---
+
+    
+## **Overview of Assignment**
+
+## Assignment Overview
+For all possible pairs of variables in your dataset, test the relationship between the two variables. Indicate
+the significance and (if appropriate) the magnitude of each relationship.
+As you work on this assignment, you may find that you’ve changed your mind about which variables you
+want to include in your dataset or how you want to define them. That’s not a problem; you can change
+your dataset at any time. Clearly indicate how you’ve decided to change it and why.
+
+
+#### **Variables** 
+
+**Continuous** <br>
+1. Household Income (HINCP)  <br>
+2. Number of People in Household (NP) <br>
+3. Commute to work (JWMNP) <br>
+4. Age of Person (AGEP) <br>
+
+**Categorical** <br> 
+5. Decade House Constructed (development) <br>
+6. Racial Demographics (RAC1P & HISP) <br>
+7. Type of Unit (BLD) <br>
+
+```{r, message = FALSE, results='hide'}
+library(tidyverse)
+library(tidycensus)
+library(ggplot2)
+library(ggthemes)
+library(plyr)
+library(epiDisplay)
+library(dplyr)
+```
+
+
+#####  Load Household Data Set & Housekeeping
+```{r, message = FALSE, results='hide'}
+# Load CSV (for Reference)
+household_data <- read_csv("assignment1_vars.csv")
+
+
+#Remove Scientific Notation
+options(scipen = 999)
+
+#Load New Variables (In This assignment I have decided to load new variables, so am choosing to use get_pums again instead of modifying CSV in earlier assignment. 
+  #Major changes are: 1) using PINCP instead of HINCP. 2) including HISP to make new compound Race & Ethnicity Variable. 3) Including BLD (Units in Structure)
+  
+#Show Me Variables:
+
+  #Person Level
+person_vars_2018 <- pums_variables %>%
+  distinct(year, survey, var_code, var_label, data_type, level) %>%
+
+  filter(level=="person", year==2018, survey=="acs1")
+
+
+#HouseHold Level
+hh_vars_2018 <- pums_variables %>%
+
+  distinct(year, survey, var_code, var_label, data_type, level)%>%
+
+  filter(level=="housing", year==2018, survey=="acs1")
+  
+assignment3_vars <- get_pums(variables = c("YBL", 
+                                          "HINCP",
+                                          "RAC1P", 
+                                          "JWMNP",
+                                          "NP", 
+                                          "PUMA",
+                                          "HISP", 
+                                          "AGEP", 
+                                          "BLD",
+                                          "PINCP"),
+                state= "NM",
+                year =2018,
+                survey ="acs1",
+                recode=TRUE) %>%
+                mutate(PUMA = as.numeric(PUMA))%>%
+                filter(PUMA> 00100 & PUMA <01200)%>%
+                filter(HINCP >0)%>%
+              
+  
+  mutate(development = case_when(
+                        YBL_label == "1939 or earlier" ~ "pre 1940", 
+                        YBL_label == "1940 to 1949" ~ "1940s",
+                        YBL_label == "1950 to 1959" ~ "1950s",
+                        YBL_label == "1960 to 1969" ~ "1960s",
+                        YBL_label == "1970 to 1979" ~ "1970s",
+                        YBL_label == "1980 to 1989" ~ "1980s",
+                        YBL_label == "1990 to 1999" ~ "1990s",
+                        YBL_label == "2000 to 2004" ~ "2000s",
+                        YBL_label == "2005"~ "2000s" ,
+                        YBL_label == "2006"~ "2000s" ,
+                        YBL_label == "2007"~ "2000s" ,
+                        YBL_label == "2008"~ "2000s" ,
+                        YBL_label == "2009"~ "2000s" ,
+                               YBL_label == "2010" ~ "2010s",
+                               YBL_label == "2011" ~ "2010s",
+                               YBL_label == "2012" ~ "2010s",
+                               YBL_label == "2013" ~ "2010s",
+                               YBL_label == "2014" ~ "2010s",
+                               YBL_label == "2015" ~ "2010s",
+                               YBL_label == "2016" ~ "2010s",
+                               YBL_label == "2017" ~ "2010s",
+                               YBL_label == "2018" ~ "2010s")) %>%
+    
+  
+#Recode Journey to Work as a Categorical Variable
+mutate(JWMNP_binned = case_when(
+          JWMNP <15 ~ "Less Than 15 minutes",
+          JWMNP <30 & JWMNP >15 | JWMNP == 15 ~ "15 - 30 minutes",
+          JWMNP >30 & JWMNP <45 | JWMNP == 45 ~ "30 - 45 minutes", 
+          JWMNP >45 & JWMNP <60 | JWMNP == 60 ~ "45 - 60 minutes",
+          JWMNP >60 & JWMNP <75 | JWMNP == 75 ~ "60 - 75 minutes",)) %>%
+  
+#Recode Race & Ethnicity Together
+  mutate(race_ethnicity = case_when(
+    
+    #White
+   RAC1P_label == "White alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "White (NH)",
+   RAC1P_label == "White alone" & HISP_label != "Not Spanish/Hispanic/Latino" ~ "White (Hispanic)",
+   
+   #Native American (inc Alaska Native)
+   RAC1P_label == "American Indian alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Native American (NH)",
+   RAC1P_label == "American Indian alone" & HISP_label != "Not Spanish/Hispanic/Latino" ~"Native American (Hispanic)",
+   RAC1P_label == "American Indian and Alaska Nativeunique(R) tribes specified; or American Indian or Alaska Native, not specified and no other races" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Native American (NH)",
+   RAC1P_label == "American Indian and Alaska Native tribes specified; or American Indian or Alaska Native, not specified and no other races" & HISP_label != "Not Spanish/Hispanic/Latino"~ "Native American (Hispanic)",
+   RAC1P_label == "Alaska Native alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Native American (NH)",
+   RAC1P_label == "Alaska Native alone" & HISP_label != "Not Spanish/Hispanic/Latino" ~"Native American (Hispanic)",
+   
+   #African American or Black
+    RAC1P_label == "Black or African American alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Black/African American (NH)",
+    RAC1P_label == "Black or African American alone" & HISP_label != "Not Spanish/Hispanic/Latino" ~ "Black/African American (Hispanic)",
+   
+   #Asian
+   RAC1P_label =="Asian alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Asian (NH)",
+   RAC1P_label =="Asian alone" & HISP_label != "Not Spanish/Hispanic/Latino" ~ "Asian Hispanic",
+   
+   #Some Other Race Alone & Multiracial
+   RAC1P_label == "Some Other Race alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Other Race or Multiracial (NH)",
+   RAC1P_label == "Some Other Race alone" & HISP_label != "Not Spanish/Hispanic/Latino"~ "Other Race or multiracial (Hispanic)",
+   RAC1P_label == "Two or More Races" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Other Race or Multiracial (NH)",
+   RAC1P_label == "Two or More Races" & HISP_label != "Not Spanish/Hispanic/Latino"~ "Other Race or multiracial (Hispanic)",
+   
+   #Native Hawaiian, Pacific Islander --> Coded as Other Race
+   RAC1P_label == "Native Hawaiian and Other Pacific Islander alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Other Race or Multiracial (NH)",
+   RAC1P_label == "Native Hawaiian and Other Pacific Islander alone" & HISP_label != "Not Spanish/Hispanic/Latino" ~ "Other Race or multiracial (Hispanic)", 
+   
+   # Other
+   TRUE ~ "Other"))%>%
+
+select(HINCP, race_ethnicity, JWMNP_binned, NP, PUMA, development, AGEP, BLD_label, PINCP)
+```
+**Note about race_ethnicity variable**: For the sake of this assignment and calculating Chi-Squared Tests. I have collapsed Native Hawaiian/Pacific Islander into the Other Race or Multiracial Category. 
+
+
+## Exploring Data Set (After having set new variables)
+```{r}
+#table(assignment3_vars$race_ethnicity)
+count(assignment3_vars, 'race_ethnicity')
+
+tab1(assignment3_vars$race_ethnicity, sort.group ="decreasing", cum.percent =TRUE) +
+
+
+```
+
+
+```{r}
+ggplot(assignment3_vars, aes(x = race_ethnicity)) +
+  geom_bar() +
+   theme(axis.text.x = element_text(angle = 90)) +
+    scale_y_continuous(breaks = seq(0,8000, by = 1000),
+                     labels = paste(seq(0,8000, by = 1000),
+                     "", sep = "")) +
+  coord_flip()
+
+```
+
+
+## Linear Regression
+```{r, message = FALSE, results='hide'}
+
+model <- lm(HINCP ~ JWMNP_binned + NP + development + AGEP, 
+            data = assignment3_vars)
+
+summary(model)
+```
+
+
+
+
+
+#Remove Scientific Notation
+options(scipen = 999)
+```
+
+
+# Calculations 
+## Household Income
+### Household Income & Number of People in Household
+```{r, message = FALSE, results='hide'}
+correlation_HINCP_NP <- cor.test(assignment3_vars$HINCP, assignment3_vars$NP) 
+correlation_HINCP_NP
+```
+
+### Household Income & Commute To Work
+```{r, message = FALSE, results='hide'}
+anova_HINCP_JWMNP <- aov(HINCP ~ JWMNP_binned, data = assignment3_vars) 
+summary(anova_HINCP_JWMNP)
+
+# Calculate Tukey's Honestly Signigicant Difference Test
+differences_HINCP_JWMNP <- TukeyHSD(anova_HINCP_JWMNP)
+
+as_tibble(cbind(pair=row.names(differences_HINCP_JWMNP$HINCP),differences_HINCP_JWMNP$JWMNP))
+```
+
+                Df    Sum Sq   Mean Sq
+JWMNP_binned     4 1.041e+12 2.603e+11
+Residuals    13562 8.359e+13 6.164e+09
+             F value Pr(>F)    
+JWMNP_binned   42.23 <2e-16 ***
+Residuals                      
+---
+Signif. codes:  
+  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1
+  ‘ ’ 1
+805 observations deleted due to missingness
+
+
+### Household Income & Age of Person
+### Household Income & Decade House Constructed
+### Household Income & Race
+
+
+
+
+
+
+
+
+So for example the F Valueq
+in the ANOVA output is telling us that there is a difference in means (if it is greater than zero)
+and the Pr value is telling us the likelihood of that difference appearing in our data if there is not actually a difference
+
+
+
+
+
+
+
+
+
+
+--------------------
+
+## **Continuous Distributions**
+
+### 1. Distribution for Household Income
+
+> **For Household Income In New Mexico:** <br>
+Mean: $79,843.00 <br>
+Standard Deviation: $64,093.08 <br>
+Interquartile Range: $30,500 to 100,000 $<br>
+95 % Confidence Interval: $57,667.38 to $67,072.59 <br>
+
+
+>**Discussion of Income**
+I Realized that I wanted to filter my data set to remove negative values for income. I came to this conclusion that I should filter for non-negative values when talking with Emma Colley. I did this in the code from Assignment 1 so it is not shown in this R Markdown document. 
+
+It is really striking to me how New Mexico compares to other states. The Interquartile range is the measurement that is most revealing to me. Overall the histogram is skewed right with a high concentration around 75,000$. The skew is enough that it might make sense to put this data into income quartiles. 
+
+**Historgram**
+```{r}
+hist(household_data$HINCP) 
+```
+
+
+
+**Summary: Mean, Interquartile Range**
+```{r}
+#Summary
+HINCP_summary <- summary(household_data$HINCP)
+HINCP_summary
+```
+
+**Standard Deviation**
+```{r}
+#Standard Deviation
+sd(household_data$HINCP)
+```
+
+**95% Confidence Interval** 
+```{r}
+#Step One: Take a One Sample T-Test
+conf_int<- t.test(household_data$HINCP)
+conf_int
+# Take the mean (which will be the same as the sample mean)
+conf_int$estimate
+
+#Calculate the LOWER limit
+conf_int$conf.int[1]
+
+#Calculate the UPPER limit
+conf_int$conf.int[2]
+```
+
+
+--------------------
+
+
+
+### 2. Distribution for Number of People In Household
+> **For Number of People in Household In New Mexico:** <br>
+Mean: 3.07 People <br>
+Standard Deviation: 1.71  <br>
+Interquartile Range:2 people - 4 people $<br>
+95 % Confidence Interval: 3.05 -3.11 <br>
+
+> **Discussion** This pretty much checks out with what I would have guessed. I don't know if I would consider this a normal distribution since there is such a sharp peak at 2 members in a househod. 
+
+```{r}
+ggplot(household_data, aes(x=NP)) +
+  geom_histogram() +
+  scale_x_continuous(breaks=seq(0,13, by =1)) +
+  theme_wsj()
+```
+
+
+```{r}
+mean(household_data$NP)
+median(household_data$NP)
+quantile(household_data$NP)
+sd(household_data$NP)
+```
+
+**95% Confidence Interval** 
+```{r}
+#Step One: Take a One Sample T-Test
+conf_int<- t.test(household_data$NP)
+conf_int
+# Take the mean (which will be the same as the sample mean)
+conf_int$estimate
+
+#Calculate the LOWER limit
+conf_int$conf.int[1]
+
+#Calculate the UPPER limit
+conf_int$conf.int[2]
+```
+
+
+--------------------
+
+
+
+###  3. Distribution for Commute
+>**How long is the commute In New Mexico (In Minutes):** <br>
+Mean: 9.3 Minutes <br>
+Standard Deviation: 17.2 minutes  <br>
+Interquartile Range: 0 to 15 minutes $<br>
+95 % Confidence Interval: 9.05-9.60 <br>
+
+>**Discussion** Im very curious about the accuracy of this dataset. I think in the future, I might be better off to convert it to a categorical variable. There seems to be a lot of rounding/not reporting. New Mexico doesn't have a "rush hour" and it is uncommon for long commutes, so I could see this being somewhat accurate. But it is hard to believe that there are so many people with no commute. It is a normal-ish distribution if you exclude the less than 5 minute commute times. 
+
+```{r}
+ggplot(household_data, aes(x=JWMNP)) +
+  geom_histogram() +
+  scale_x_continuous(breaks=seq(0,160, by =10)) +
+  theme_wsj()
+```
+
+
+```{r}
+mean(household_data$JWMNP)
+quantile(household_data$JWMNP)
+sd(household_data$JWMNP)
+```
+
+**95% Confidence Interval** 
+```{r}
+#Step One: Take a One Sample T-Test
+conf_int<- t.test(household_data$JWMNP)
+conf_int
+# Take the mean (which will be the same as the sample mean)
+conf_int$estimate
+
+#Calculate the LOWER limit
+conf_int$conf.int[1]
+
+#Calculate the UPPER limit
+conf_int$conf.int[2]
+```
+
+
+
+--------------
+
+
+### 4. Distribution for Age
+>**What is the Age Distribution in New Mexico:** <br>
+Mean: 43.3 years old <br>
+Standard Deviation: 23.8 years  <br>
+Interquartile Range: 23 years old to 63 years old minutes $<br>
+95 % Confidence Interval: 42.9 years old  to 43.7 years old  <br>
+
+> **Discussion** People leaving New Mexico in their twenties and coming back when they are older is SUCH a trope of NM, interesting to see that reflected in the data. Definitely not a normal distribution, looks like a bimodal distribution. 
+
+```{r}
+ggplot(household_data, aes(x=AGEP)) +
+  geom_histogram() +
+  scale_x_continuous(name="Age", 
+                     breaks = seq(0,100, by = 5),
+                     labels = paste(seq(0,100, by = 5),
+                     "", sep = "")) +
+  theme_wsj()
+```
+
+
+```{r}
+mean(household_data$AGEP)
+quantile(household_data$AGEP)
+sd(household_data$AGEP)
+```
+
+**95% Confidence Interval** 
+```{r}
+#Step One: Take a One Sample T-Test
+conf_int<- t.test(household_data$AGEP)
+conf_int
+# Take the mean (which will be the same as the sample mean)
+conf_int$estimate
+
+#Calculate the LOWER limit
+conf_int$conf.int[1]
+
+#Calculate the UPPER limit
+conf_int$conf.int[2]
+```
+
+
+
+
+## **Proportions of Categorical Variables**
+
+### 5. Proportions of Construction Decade
+> **Discussion** This seems to really highlight the new construction drop-off in 2008. In the Vis exercise, I feel like I was trying to get fancy with violin plots, when this is what would have helped make the case the clearest. I think is the closest to a normal distribution that I have. 
+
+```{r}
+ggplot(household_data, aes(x=development)) +
+  geom_bar() +
+  theme_wsj()
+```
+**Proportions & 95% COnfidence Intervals**
+
+```{r}
+#Get list of all possible values
+decade <- unique(household_data$development)
+decade
+
+#Get share of Sample in EACH Category
+fourties <- t.test(household_data$development==decade[1])
+fifties <- t.test(household_data$development==decade[2])
+sixties <- t.test(household_data$development==decade[3])
+seventies <- t.test(household_data$development==decade[4])
+eighties <- t.test(household_data$development==decade[5])
+nineties <- t.test(household_data$development==decade[6])
+two_thousands <- t.test(household_data$development==decade[7])
+two_thousand_tens <-  t.test(household_data$development==decade[8])
+
+#Get the Shares
+shares <- tibble(Decade = c("1940s",
+                            "1950s",
+                            "1960s",
+                            "1970s",
+                            "1980s",
+                            "1990s",
+                            "2000s"),
+                 
+                 Share = c(fourties$estimate,
+                             fifties$estimate,
+                             sixties$estimate,
+                             seventies$estimate,
+                             eighties$estimate,
+                             nineties$estimate,
+                             two_thousands$estimate),
+                 
+                 Low = c(fourties$conf.int[1],
+                             fifties$conf.int[1],
+                             sixties$conf.int[1],
+                             seventies$conf.int[1],
+                             eighties$conf.int[1],
+                             nineties$conf.int[1],
+                             two_thousands$conf.int[1]),
+                  
+                 High = c(fourties$conf.int[2],
+                             fifties$conf.int[2],
+                             sixties$conf.int[2],
+                             seventies$conf.int[2],
+                             eighties$conf.int[2],
+                             nineties$conf.int[2],
+                             two_thousands$conf.int[2]))
+knitr::kable(shares, caption = "Proportions and 95-percent confidence intervals") 
+```
+**notes** Ryan Johnson helped me find a missing parenthesis in this code. I owe him my sanity. 
+
+Future Deve. 
+ggplot(household_data, aes(x=development, y= Share, ymin=Low, ymax= High)) +
+  scale_y_continuous( name = "Share of Population")
+  geom_bar() +
+  theme_wsj()
+
+**proportions**
+```{r}
+#See Unique Values
+#unique(household_data$development)
+#Pull Into table
+#table(household_data$development)
+#Create Proportions by dividing above table by total number of observations
+#table(household_data$development)/sum(table(household_data$development))
+
+#Or calculate directly using 
+#mean(household_data$development == "1970s")
+```
+**95% COnfidence Interval**
+```{r}
+#Use T-Test
+t.test(household_data$development == "1940s")
+```
+
+### 6. Proportions of Racial Demographics
+
+> **Discussion** I really want to break out hispanic ethnicity. Currently the distribution is all lumped into largely one homogenous category. 
+
+```{r}
+ggplot(household_data, aes(x=RAC1P_label)) +
+  geom_bar() +
+  theme_fivethirtyeight()
+```
+**Proportions & 95% COnfidence Intervals**
+
+Notes: Running into this error, "Error in t.test.default(household_data$RAC1P == decade[1]) : not enough 'x' observations"
+cannot seem to get around it. 
+
+
+```{r}
+#Get list of all possible values
+races <- unique(household_data$RAC1P_label)
+races
+
+#TroubleShooting
+table(household_data$RAC1P_label)
+
+#Get share of Sample in EACH Category
+white <- t.test(household_data$RAC1P_label==races[1])
+american_indian <- t.test(household_data$RAC1P_label==races[2])
+two_or_more <- t.test(household_data$RAC1P_label==races[3])
+american_indian_tribe_spec <- t.test(household_data$RAC1P_label==races[4])
+asian <- t.test(household_data$RAC1P_label==races[5])
+black <- t.test(household_data$RAC1P_label==races[6])
+some_other_race <- t.test(household_data$RAC1P_label==races[7])
+hawaiian_pacific_islander <- t.test(household_data$RAC1P_label==races[8])
+alaska_native <- t.test(household_data$RAC1P_label==races[9])
+
+#Get the Shares
+shares <- tibble(Decade = c("White",
+                            "American Indian",
+                            "Two Or More",
+                            "American Indian Specific Tribe",
+                            "Asian",
+                            "Black",
+                            "Some Other Race",
+                            "Hawaii Pacific Islander",
+                            "Alaska Native"),
+                 
+                 `Share` = c(white$estimate,
+                             american_indian$estimate,
+                             two_or_more$estimate,
+                             american_indian_tribe_spec$estimate,
+                             asian$estimate,
+                             black$estimate,
+                             some_other_race$estimate,
+                             hawaiian_pacific_islander$estimate,
+                             alaska_native$estimate),
+                 
+                 Low = c(white$conf.int[1],
+                             american_indian$conf.int[1],
+                             two_or_more$conf.int[1],
+                             american_indian_tribe_spec$conf.int[1],
+                             asian$conf.int[1],
+                             black$conf.int[1],
+                             some_other_race$conf.int[1],
+                             hawaiian_pacific_islander$conf.int[1],
+                             alaska_native$conf.int[1]),
+                  
+                 High =c(white$conf.int[2],
+                             american_indian$conf.int[2],
+                             two_or_more$conf.int[2],
+                             american_indian_tribe_spec$conf.int[2],
+                             asian$conf.int[2],
+                             black$conf.int[2],
+                             some_other_race$conf.int[2],
+                             hawaiian_pacific_islander$conf.int[2],
+                             alaska_native$conf.int[2]))
+knitr::kable(shares, caption = "Proportions and 95-percent confidence intervals") 
+```
+
+
+
+
+
+--------------------
+
+
+## **R Cheat Sheet, References & Troubleshooting**
+Hello! I see this area of my assignment as predominantly a resource for myself as I learn R and as a resource to R if I ever need to return after a hiatus (and have forgotten everything I know). 
+
+Feel free to look through, but there is no need to grade anything in this section. 
+
+
+** Sage's Troubleshooting Checklist** <br/>
+0. Breathe. <br/>
+1. Is everything spelled/cApiTAlized correctly? <br/>
+2. Count your parentheses(), commas, and "quotes" <br/>
+    2.1 Check poles %>%, | <br/>
+3. Have you run the R chunks that are before the chunk with your error. <br/>
+5. What is the last thing you changed? Did you make sure you changed it in ALL the places it needs to be changed?<br/>
+6. Breathe. Maybe get a glass of water.  <br/>
+7. Type in the ?function() into the Console <br/>
+8. Do a Google search for "R Markdown" + Your Problem <br/>
+9. Try retyping the function from scratch.
+10. Try copying and pasting sections in another R Chunk --> Isolate the Problem <br/>
+11. Phone a friend. <br/>
+
+**Common Errors:** <br/>
+-If you are having a function not found error, check whether or not you have run your libraries. <br/>
+-YAML error, check the very beginning of your code
+- 
+
+**If you want to see the values of a variable as they appear in your dataset**
+#Race <br/>
+#unique(household_data$RAC1P_label) <br/>
+#Hispanic <br/>
+#unique(household_data$HISP_label) <br/>
+
+### References
+
+**For General R**
+R is for Data Science
+https://r4ds.had.co.nz/index.html
+
+Data Wrangling Cheat Sheet
+https://rstudio.com/wp-content/uploads/2015/02/data-wrangling-cheatsheet.pdf
+
+*formatting*
+https://rstudio.com/wp-content/uploads/2015/02/rmarkdown-cheatsheet.pdf
+
+*For GGPLOT**
+Top 50 Graph Types
+http://r-statistics.co/Top50-Ggplot2-Visualizations-MasterList-R-Code.html#Violin%20Plot
+
+GGplot Cheat Sheet
+https://rstudio.com/wp-content/uploads/2015/03/ggplot2-cheatsheet.pdf
+
+Color Pallets
+https://www.datanovia.com/en/blog/ggplot-colors-best-tricks-you-will-love/#predefined-ggplot-color-palettes
+
+
+Look into Wes Anderson Themes, WSJ, Economist
+
+**Number Crunching**
+
+Another Way of Pulling Summary <br/>
+#mean(household_data$HINCP) <br/>
+#quantile(household_data$HINCP) <br/>
+#sd(household_data$HINCP) <br/>
+
+Simple Explanation of Dsitributions: 
+https://nezumisa.wordpress.com/2013/06/03/different-types-of-distributions/
+
+
+
+
