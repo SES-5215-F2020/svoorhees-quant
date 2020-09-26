@@ -1,0 +1,655 @@
+---
+title: "Assignment 3: Quantitive Analysis"
+Date: 9/20/2020
+Name: "Sage Voorhees"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+    theme: cosmo
+code_folding: hide
+
+---
+
+    
+## **Overview of Assignment**
+
+### Assignment Overview
+For all possible pairs of variables in your dataset, test the relationship between the two variables. Indicate
+the significance and (if appropriate) the magnitude of each relationship.
+As you work on this assignment, you may find that you’ve changed your mind about which variables you
+want to include in your dataset or how you want to define them. That’s not a problem; you can change
+your dataset at any time. Clearly indicate how you’ve decided to change it and why.
+
+
+#### **Variables** 
+
+**Continuous** <br>
+1. Household Income (HINCP)  <br>
+2. Number of People in Household (NP) <br>
+3. Commute to work (JWMNP) <br>
+4. Age of Person (AGEP) <br>
+
+**Categorical** <br> 
+5. Decade House Constructed (development) <br>
+6. Racial Demographics (RAC1P & HISP) <br>
+
+**Included in DataSet but not used in this particular assignment** <br>
+7. Type of Unit (BLD) <br>
+
+```{r, message = FALSE, results='hide'}
+library(tidyverse)
+library(tidycensus)
+library(ggplot2)
+library(ggthemes)
+library(plyr)
+library(epiDisplay)
+library(dplyr)
+```
+
+
+#### **Code written in seperate file (trying to limit the Data Consumption of R)**
+> New_Mexico_Vars_Development <- get_pums(variables = c("YBL", 
+                                          "HINCP",
+                                          "RAC1P", 
+                                          "JWMNP",
+                                          "NP", 
+                                          "PUMA",
+                                          "HISP", 
+                                          "AGEP", 
+                                          "BLD",
+                                          "PINCP"),
+                state= "NM",
+                year =2018,
+                survey ="acs1",
+                recode=TRUE) %>%
+                mutate(PUMA = as.numeric(PUMA))%>%
+                filter(PUMA> 00100 & PUMA <01200)%>%
+                filter(HINCP >0)%>%
+  
+ >dplyr::select(HINCP, RAC1P, JWMNP, NP, PUMA, HISP, AGEP, BLD, PINCP)
+  
+  >write_csv(New_Mexico_Vars_Development, "New_Mexico_Vars_Development")
+
+
+
+#####  **Load Household Data Set & Housekeeping**
+```{r, message = FALSE, results='hide'}
+
+#Load New Variables (In This assignment I have decided to load new variables, 
+  #Major changes are: 1) using PINCP in addition to HINCP. 2) including HISP to make new compound Race & Ethnicity Variable. 3) Including BLD (Units in Structure) 4)Mutating JWMNP into a categorical variable in 15 minute increments. 
+  
+#Load DataSet from CSV
+
+assignment3_vars <- read_csv("New_Mexico_Vars_Development")
+  
+#Mutate YBL to Devade House Was Built
+assignment3_vars <-assignment3_vars %>%
+  mutate(development = case_when(
+                        YBL_label == "1939 or earlier" ~ "1 pre 1940", 
+                        YBL_label == "1940 to 1949" ~ "1940s",
+                        YBL_label == "1950 to 1959" ~ "1950s",
+                        YBL_label == "1960 to 1969" ~ "1960s",
+                        YBL_label == "1970 to 1979" ~ "1970s",
+                        YBL_label == "1980 to 1989" ~ "1980s",
+                        YBL_label == "1990 to 1999" ~ "1990s",
+                        YBL_label == "2000 to 2004" ~ "2000s",
+                        YBL_label == "2005"~ "2000s" ,
+                        YBL_label == "2006"~ "2000s" ,
+                        YBL_label == "2007"~ "2000s" ,
+                        YBL_label == "2008"~ "2000s" ,
+                        YBL_label == "2009"~ "2000s" ,
+                               YBL_label == "2010" ~ "2010s",
+                               YBL_label == "2011" ~ "2010s",
+                               YBL_label == "2012" ~ "2010s",
+                               YBL_label == "2013" ~ "2010s",
+                               YBL_label == "2014" ~ "2010s",
+                               YBL_label == "2015" ~ "2010s",
+                               YBL_label == "2016" ~ "2010s",
+                               YBL_label == "2017" ~ "2010s",
+                               YBL_label == "2018" ~ "2010s")) %>%
+    
+#Recode Journey to Work as a Categorical Variable
+mutate(JWMNP_binned = case_when(
+          JWMNP <15 ~ "Less Than 15 minutes",
+          JWMNP <30 & JWMNP >15 | JWMNP == 15 ~ "15 - 30 minutes",
+          JWMNP >30 & JWMNP <45 | JWMNP == 45 ~ "30 - 45 minutes", 
+          JWMNP >45 & JWMNP <60 | JWMNP == 60 ~ "45 - 60 minutes",
+          JWMNP >60 & JWMNP <75 | JWMNP == 75 ~ "60 - 75 minutes",
+          TRUE ~ "No Commute Reported")) %>%
+  
+#Recode Race & Ethnicity Together
+  #Carole gave me a great note on how to use the RAC1p & HISP variables instead of the RAC1P_label & HISP_labels to clean up this code. I have not had time to do so, but will do soon. 
+  
+  mutate(race_ethnicity = case_when(
+    
+    #White
+   RAC1P_label == "White alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "White (NH)",
+   RAC1P_label == "White alone" & HISP_label != "Not Spanish/Hispanic/Latino" ~ "White (Hispanic)",
+   
+   #Native American (inc Alaska Native)
+   RAC1P_label == "American Indian alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Native American (NH)",
+   RAC1P_label == "American Indian alone" & HISP_label != "Not Spanish/Hispanic/Latino" ~"Native American (Hispanic)",
+   RAC1P_label == "American Indian and Alaska Nativeunique(R) tribes specified; or American Indian or Alaska Native, not specified and no other races" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Native American (NH)",
+   RAC1P_label == "American Indian and Alaska Native tribes specified; or American Indian or Alaska Native, not specified and no other races" & HISP_label != "Not Spanish/Hispanic/Latino"~ "Native American (Hispanic)",
+   RAC1P_label == "Alaska Native alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Native American (NH)",
+   RAC1P_label == "Alaska Native alone" & HISP_label != "Not Spanish/Hispanic/Latino" ~"Native American (Hispanic)",
+   
+   #African American or Black
+    RAC1P_label == "Black or African American alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Black/African American (NH)",
+    RAC1P_label == "Black or African American alone" & HISP_label != "Not Spanish/Hispanic/Latino" ~ "Black/African American (Hispanic)",
+   
+   #Asian
+   RAC1P_label =="Asian alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Asian (NH)",
+   RAC1P_label =="Asian alone" & HISP_label != "Not Spanish/Hispanic/Latino" ~ "Asian Hispanic",
+   
+   #Some Other Race Alone & Multiracial
+   RAC1P_label == "Some Other Race alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Other Race or Multiracial (NH)",
+   RAC1P_label == "Some Other Race alone" & HISP_label != "Not Spanish/Hispanic/Latino"~ "Other Race or multiracial (Hispanic)",
+   RAC1P_label == "Two or More Races" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Other Race or Multiracial (NH)",
+   RAC1P_label == "Two or More Races" & HISP_label != "Not Spanish/Hispanic/Latino"~ "Other Race or multiracial (Hispanic)",
+   
+   #Native Hawaiian, Pacific Islander --> Coded as Other Race
+   RAC1P_label == "Native Hawaiian and Other Pacific Islander alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Other Race or Multiracial (NH)",
+   RAC1P_label == "Native Hawaiian and Other Pacific Islander alone" & HISP_label != "Not Spanish/Hispanic/Latino" ~ "Other Race or multiracial (Hispanic)", 
+   
+   # Other
+   TRUE ~ "Other"))%>%
+
+dplyr::select(HINCP, race_ethnicity, JWMNP_binned, NP, PUMA, development, AGEP, BLD_label, PINCP)
+```
+**Note about race_ethnicity variable**: For the sake of this assignment and calculating Chi-Squared Tests. I have collapsed Native Hawaiian/Pacific Islander into the Other Race or Multiracial Category. I've been debating whether or not to collapes Asian Hispanic & Non-Hispanic Asian. Leaving it for the time being. 
+
+
+## **Exploring Data Set**
+After I made my race_ethnicity variable I decided to play around with it to 1) get a sense of where my data was and 2) find out if I needed to collapse more categories in order to do a Chi-Squared Test. 
+```{r}
+ggplot(assignment3_vars, aes(x = race_ethnicity)) +
+  geom_bar() +
+   theme(axis.text.x = element_text(angle = 90)) +
+    scale_y_continuous(breaks = seq(0,8000, by = 1000),
+                     labels = paste(seq(0,8000, by = 1000),
+                     "", sep = "")) +
+  coord_flip()
+
+```
+
+### Wanted to get the numbers of each
+```{r}
+#table(assignment3_vars$race_ethnicity)
+count(assignment3_vars, 'race_ethnicity')
+
+tab1(assignment3_vars$race_ethnicity, sort.group ="decreasing", cum.percent =TRUE) 
+
+```
+
+
+## **Relationship Calculations:**
+
+### References for Data Interpretation
+SOME DUDE's (J.D. EVANS) THOUGHTS ON CORRELATION STRENGTHS from 1996 <br>
+.00-.19 = very weak <br>
+.20-.39 = weak <br>
+.40-.59 = moderate <br>
+.60-.79 = strong <br>
+.80-1.0 = very strong <br>
+
+After a discussion with Julia, I decided to use these cutoffs to inform how I described my correlations. 
+
+### WHat is F and Pr in the ANOVA test Results? <br>
+The **F Value** in the ANOVA output is telling us that there is a difference in means (if it is greater than zero) and the **Pr** value is telling us the likelihood of that difference appearing in our data if there is not actually a difference
+
+## **1. Household Income**
+### 1.1 Household Income & Number of People in Household
+
+**Type of Test**: Two continuous variables --> Pearson's Correlation --> Will generate strength and significance of relationship. 
+
+```{r, message = FALSE}
+correlation_HINCP_NP <- cor.test(assignment3_vars$HINCP, assignment3_vars$NP) 
+correlation_HINCP_NP
+```
+
+**Results interpreted**: The relationship is significant, thus there is a very weak positive relationship between Household Income and Number of People in Household. Roughly speaking, there is some indication that as the number of people in a household increases, so does income. 
+
+### 1.2 Household Income & Commute To Work
+**Type of Test**: A continuous variable and a categorical variable with more than three levels --> Analysis of Variance Test (ANOVA) --> Will give the significance of the relationship <br>
+
+**Results interpreted**: The ANOVA test shows us that there is a significant relationship between Household Income and Commute to work. Tukeys (not Turkeys!) Honestly Significant Test allows us to go further into this significance and show the varying magnitude of differences between the categories. ie, we see that less than 15-30min to 30-45 minutes has more of a difference than 30-45min to 45-60min. <br>
+
+**QUestion for Grader** If you could point me to a resource to better understand the results of Tukeys HSD, I'd be appreciative. 
+
+```{r, message = FALSE}
+anova_HINCP_JWMNP <- aov(HINCP ~ JWMNP_binned, data = assignment3_vars) 
+summary(anova_HINCP_JWMNP)
+
+
+```
+
+```{r}
+# Calculate Tukey's Honestly Signigicant Difference Test
+differences_HINCP_JWMNP <- TukeyHSD(anova_HINCP_JWMNP)
+
+as_tibble(cbind(pair=row.names(differences_HINCP_JWMNP$HINCP),differences_HINCP_JWMNP$JWMNP))
+differences_HINCP_JWMNP
+
+```
+
+
+```{r}
+ggplot(assignment3_vars, aes(x=JWMNP_binned, y=HINCP)) +
+  geom_boxplot() +
+  theme_bw() 
+
+```
+
+### 1.3 Household Income & Age of Person
+**Type of Test**: Two continuous variables --> Pearson's Correlation --> Will generate strength and significance of relationship. 
+
+```{r, message = FALSE}
+correlation_HINCP_AGEP <- cor.test(assignment3_vars$HINCP, assignment3_vars$AGEP) 
+correlation_HINCP_AGEP
+```
+**Analysis of Results**: This test is showing that there is a significantly significant (within the 95% confidence interval), but VERY weak correlation between Household Income and Age of Person. When I graph this, it makes sense that there is no readily apparent relationship. Although I think without looking at the Data I would have expected there to be one. 
+```{r}
+ggplot(assignment3_vars, aes(AGEP, HINCP)) +
+  geom_point(alpha=.5, sixe =5)
+```
+
+
+### 1.4 Household Income & Decade House Constructed
+
+**Type of Test**: A continuous variable and a categorical variable with more than three levels --> Analysis of Variance Test (ANOVA) --> Will give the significance of the relationship <br>
+
+```{r, message = FALSE}
+anova_HINCP_development <- aov(HINCP ~ development, data = assignment3_vars) 
+summary(anova_HINCP_development)
+
+
+```
+**Analysis of Results**: The relationship is significant. The relationship between these variables is not due to chance since the inverse would only happen once in 2e-16 times of running the correlation. 
+
+```{r}
+ggplot(assignment3_vars, aes(x=development, y=HINCP)) +
+         geom_violin(color="sienna", fill ="sienna2", alpha=.75, size =.5) +
+  theme_clean()
+```
+
+
+### 1.5 Household Income & Race_Ethnicity
+
+**Type of Test**: A continuous variable and a categorical variable with more than three levels --> Analysis of Variance Test (ANOVA) --> Will give the significance of the relationship <br>
+
+```{r, message = FALSE}
+anova_HINCP_race_ethnicity <- aov(HINCP ~ race_ethnicity, data = assignment3_vars) 
+summary(anova_HINCP_race_ethnicity)
+
+```
+**Analysis of Results**: The relationship is significant. The relationship between these variables is not due to chance since the inverse would only happen once in 2e-16 times of running the correlation. 
+
+```{r}
+ggplot(assignment3_vars, aes(x=race_ethnicity, y=HINCP, fill=race_ethnicity)) +
+         geom_violin(alpha=.75, size =.5) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  coord_flip()
+```
+
+
+## **2. Number of People in House**
+
+### 2.1  Number of People in House & Income <br>
+See 1.1 <br>
+
+### 2.2 Number of People in House & Commute to Work
+**Type of Test**: A continuous variable and a categorical variable with more than three levels --> Analysis of Variance Test (ANOVA) --> Will give the significance of the relationship <br>
+
+```{r, message = FALSE}
+anova_NP_JWMNP <- aov(NP ~ JWMNP_binned, data = assignment3_vars) 
+summary(anova_NP_JWMNP)
+```
+**Analysis of Results**: The relationship is significant. The relationship between these variables is not due to chance since the inverse would only happen once in 8.7e-14 times of running the correlation. It seems looking at the graph is that the correlation itself would be very weak. 
+```{r}
+ggplot(assignment3_vars, aes(x=NP, y=JWMNP_binned)) +
+  geom_point(position = "jitter", size =.25, alpha =.5) +
+  scale_x_continuous(breaks = seq(0,13, by = 1),
+                     labels = paste(seq(0,13, by = 1),
+                     "", sep = "")) +
+   theme_wsj()
+
+```
+
+### 2.3 Number of People in House & Age of Person
+**Type of Test**: Two Continuous Variables --> Pearson's Correlation --> Will give us both significance and strength of correlation
+```{r, message = FALSE}
+correlation_NP_AGEP <- cor.test(assignment3_vars$NP, assignment3_vars$AGEP) 
+correlation_NP_AGEP
+```
+**Analysis of Results** This test tells us that there is a significant relationship between number of people in house and the Age of Person. The correlation is a moderate inverse relationship. So as age increases, the number of people in household tends to decrease. This makes sense given that basically no-one in the dataset under ~18 years old is living alone. 
+
+```{r}
+ggplot(assignment3_vars, aes(AGEP, NP)) +
+  geom_point(alpha=.5, sixe =25, color="Sienna3") +
+   scale_y_continuous(name ="Number of People Living Together",
+                      breaks = seq(0,13, by = 1),
+                     labels = paste(seq(0,13, by = 1),
+                     "", sep = "")) +
+  coord_flip() +
+  theme_wsj()
+```
+
+### 2.4 Number of People in House & Decade House Constructed
+**Type of Test**: A continuous and categorical variable with more than 3 levels --> ANOVA test --> Significance of the Relationship
+
+```{r, message = FALSE}
+anova_NP_development <- aov(NP ~ development, data = assignment3_vars) 
+summary(anova_NP_development)
+```
+
+```{r}
+# Calculate Tukey's Honestly Signigicant Difference Test
+differences_NP_development <- TukeyHSD(anova_NP_development)
+as_tibble(cbind(pair=row.names(differences_NP_development$NP),differences_NP_development$development))
+differences_NP_development
+
+```
+**Analysis of Test**: The ANOVA test shows that there is a statistically significant correlation between Number of People and Decade the home was built in. 
+
+```{r}
+ggplot(assignment3_vars,aes( x= development, y=NP)) +
+  scale_y_continuous(name ="Number of People Living Together",
+                      breaks = seq(0,13, by = 1),
+                     labels = paste(seq(0,13, by = 1),
+                     "", sep = ""))+
+  geom_boxplot() +
+  theme_wsj()
+```
+
+
+### 2.5 Number of People in House & Race and Ethnicity
+
+
+## **3. Commute to Work**
+
+### 3.1 Commute to Work & Income <br>
+See 1.2 <br>
+
+### 3.2 Commute to Work & Number of People in House <br>
+See 2.2 <br>
+
+### 3.3 Commute to Work & Age of Person <br>
+
+**Type of Test**:  Categorical Variable & Continuous variable --> ANOVA Test --> Will give significance of relationship.
+
+anova_NP_JWMNP <- aov(NP ~ JWMNP_binned, data = assignment3_vars) 
+summary(anova_NP_JWMNP)
+
+```{r, message = FALSE}
+anova_JWMNP_AGEP <- aov(AGEP ~JWMNP_binned , data = assignment3_vars) 
+summary(anova_JWMNP_AGEP)
+```
+
+```{r}
+# Calculate Tukey's Honestly Signigicant Difference Test
+differences_JWMNP_AGEP <- TukeyHSD(anova_JWMNP_AGEP)
+as_tibble(cbind(pair=row.names(differences_JWMNP_AGEP$JWMNP),differences_JWMNP_AGEP$AGEP))
+differences_JWMNP_AGEP
+
+```
+```{r, message = FALSE, results='hide'}
+
+ggplot(assignment3_vars,aes(x=AGEP, y=JWMNP_binned)) +
+  geom_point(size=3,alpha=.7) + 
+  geom_segment(aes(x=AGEP, 
+                   xend=AGEP, 
+                   y=0, 
+                   yend=JWMNP_binned)) + 
+  labs(title="Whats Your Drive?", 
+       subtitle="Commute Time Versus Age", 
+       caption="source: ACS1") + 
+  scale_y_discrete(name="Commute Time in Minutes") +
+  scale_x_continuous(name="Age of Individual")
+  theme(axis.text.x = element_text(angle=65, vjust=0.6)) +
+    theme_fivethirtyeight()
+
+
+```
+
+**Analysis of Test**: The Anova test shows that there is not a statistically significant correlation between Age and Commute time to work. This seems to match the graph. 
+
+### 3.4 Commute to Work & Decade House Constructed
+**Type Of Test**: Two categorical variables --> Chi-Squared Test --> Will give significance
+```{r}
+chi_sq <- chisq.test(assignment3_vars$development, assignment3_vars$JWMNP_binned) 
+
+chi_sq
+#Observed
+chi_sq$observed
+
+#Expected
+chi_sq$expected
+```
+
+```{r}
+ggplot(assignment3_vars, aes(x=JWMNP_binned, y=development)) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  geom_point(position ="jitter", alpha =.75, color="sienna3", size=.25) +
+  scale_x_discrete( name= "Commute to Work") +
+  scale_y_discrete( name ="Decade\n House Built")
+  
+```
+**Analysis of Test**: The Chi-Squared Test indicated that there is a significant relationship between Commute to Work and Decade Home was built. 
+
+
+### 3.5 Commute to Work & Race and Ethnicity
+**Type of Test**: Two Categorical variables --> Chi-Squared Test --> Significance of Relationship
+```{r}
+chi_sq_race_JWMNP <- chisq.test(assignment3_vars$JWMNP_binned, assignment3_vars$race_ethnicity) 
+
+chi_sq_race_JWMNP
+#Observed
+chi_sq_race_JWMNP$observed
+
+#Expected
+chi_sq_race_JWMNP$expected
+```
+
+**Analysis of Test**: The Chi-Squared Test indicated that there is a significant relationship between Race & Ethnicity and Commute to work. 
+```{r}
+ggplot(assignment3_vars, aes(x=JWMNP_binned, y=race_ethnicity)) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  geom_point(position ="jitter", alpha =.75, color="sienna3", size=.25) +
+  scale_x_discrete( name= "Commute to Work") +
+  scale_y_discrete( name ="Race and \n Ethnicity")
+```
+
+## **4. Age of Person & Income**
+
+### 4.1 Age of Person & Household Income <br>
+See 1.3 <br>
+
+### 4.2 Age of Person & Number of People in House <br>
+See 2.3 <br>
+
+### 4.3 Age of Person & Commute to Work <br>
+See 3.3 <br>
+
+### 4.4 Age of Person & Decade House Constructed <br>
+**Type of Test**: A continuous variable and a Categorical Variable --> ANOVA Test --> Will give us significance of relationship. 
+
+```{r, message = FALSE, results='hide'}
+anova_development_AGEP <- aov(AGEP ~development , data = assignment3_vars) 
+summary(anova_development_AGEP)
+```
+
+```{r}
+# Calculate Tukey's Honestly Signigicant Difference Test
+differences_development_AGEP <- TukeyHSD(anova_development_AGEP)
+as_tibble(cbind(pair=row.names(differences_development_AGEP$development),differences_development_AGEP$AGEP))
+differences_JWMNP_AGEP
+
+```
+```{r}
+ggplot(assignment3_vars, aes(x=development, y=AGEP)) +
+         geom_violin(color="sienna", fill ="sienna2", alpha=.75, size =.5) +
+  theme_clean() + 
+  coord_flip()
+```
+**Analysis of Test**: The Anova Test indicated that there is a significant relationship between Age of Person and Decade Home was built. 
+
+### 4.5 Age of Person & Race and Ethnicity
+
+**Type of Test**: A continuous variable and a Categorical Variable --> ANOVA Test --> Will give us significance of relationship. 
+
+```{r, message = FALSE}
+anova_race_ethnicity_AGEP <- aov(AGEP ~race_ethnicity , data = assignment3_vars) 
+summary(anova_race_ethnicity_AGEP)
+```
+
+```{r}
+# Calculate Tukey's Honestly Signigicant Difference Test
+differences_race_ethnicity_AGEP <- TukeyHSD(anova_race_ethnicity_AGEP)
+as_tibble(cbind(pair=row.names(differences_race_ethnicity_AGEP$race_ethnicity),differences_race_ethnicity_AGEP$AGEP))
+differences_race_ethnicity_AGEP
+
+```
+
+**Analysis of Test**: The ANOVA Test indicated that there is a significant relationship between Age of Person and Race & Ethnicity. 
+
+```{r}
+ggplot(assignment3_vars, aes(x=race_ethnicity, y=AGEP)) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  geom_point(position ="jitter", alpha =.75, color="sienna3", size=.25) +
+  scale_x_discrete( name= "Race & Ethnicity") +
+  scale_y_discrete( name ="Age") +
+  coord_flip()
+  
+```
+
+## **5. Decade Home Constructed**
+
+### 5.1 Decade Home Constructed & Household Income  <br>
+See 1.4 <br>
+
+### 5.2 Decade Home Constructed & Numper of People <br>
+See 2.4 <br>
+
+### 5.3 Decade Home Constructed & Commute to Work <br>
+See 3.4 <br>
+
+### 5.4 Decade Home Constructed & Age of Person <br>
+See 4.4 <br>
+
+### 5.5 Decade Home Constructed & Race and Ethnicity <br>
+
+**Type of Test** Two Categorical Variables --> CHi Squared Test --> Significance of Relationship (Though it will be wonky due to low numbers in Race&Ethnicity Categories)
+
+```{r}
+chi_sq_race_development <- chisq.test(assignment3_vars$development, assignment3_vars$race_ethnicity) 
+
+chi_sq_race_development
+#Observed
+chi_sq_race_development$observed
+
+#Expected
+chi_sq_race_development$expected
+```
+
+**Analysis of Test**: The Chi-Squared Test indicated that there is a significant relationship between Race & Ethnicity and Decade Home Was Built.
+```{r}
+ggplot(assignment3_vars, aes(x=development, y=race_ethnicity)) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  geom_point(position ="jitter", alpha =.75, color="sienna3", size=.25) +
+  scale_x_discrete( name= "Decade Home Was Built") +
+  scale_y_discrete( name ="Race and \n Ethnicity")
+```
+
+## **6 Race and Ethnicity**
+
+### 6.1 Race and Ethnicity & Household Income
+See 1.5
+
+### 6.2  Race and Ethnicity & Number of People in House
+See 2.5
+
+### 6.3  Race and Ethnicity & COmmute to Work
+See 3.5
+
+### 6.4 Race and Ethnicity & Age of Person
+See 4.5 
+
+### 6.5 Race and Ethnicity & Year House Constructed
+See 5.5
+
+
+
+--------------------
+
+
+## **R Cheat Sheet, References & Troubleshooting**
+Hello! I see this area of my assignment as predominantly a resource for myself as I learn R and as a resource to R if I ever need to return after a hiatus (and have forgotten everything I know). 
+
+Feel free to look through, but there is no need to grade anything in this section. 
+
+R Collaborative Flowchart: https://miro.com/app/board/o9J_klc5-mA=/
+
+
+** Sage's Troubleshooting Checklist** <br/>
+0. Breathe. <br/>
+1. Is everything spelled/cApiTAlized correctly? <br/>
+2. Count your parentheses(), commas, and "quotes" <br/>
+    2.1 Check poles %>%, | <br/>
+3. Have you run the R chunks that are before the chunk with your error. <br/>
+5. What is the last thing you changed? Did you make sure you changed it in ALL the places it needs to be changed?<br/>
+6. Breathe. Maybe get a glass of water.  <br/>
+7. Type in the ?function() into the Console <br/>
+8. Do a Google search for "R Markdown" + Your Problem <br/>
+9. Try retyping the function from scratch.
+10. Try copying and pasting sections in another R Chunk --> Isolate the Problem <br/>
+11. Phone a friend. <br/>
+
+**Common Errors:** <br/>
+-If you are having a function not found error, check whether or not you have run your libraries. <br/>
+-YAML error, check the very beginning of your code
+- 
+
+**If you want to see the values of a variable as they appear in your dataset**
+#Race <br/>
+#unique(household_data$RAC1P_label) <br/>
+#Hispanic <br/>
+#unique(household_data$HISP_label) <br/>
+
+### References
+
+**For General R**
+R is for Data Science
+https://r4ds.had.co.nz/index.html
+
+Data Wrangling Cheat Sheet
+https://rstudio.com/wp-content/uploads/2015/02/data-wrangling-cheatsheet.pdf
+
+*formatting*
+https://rstudio.com/wp-content/uploads/2015/02/rmarkdown-cheatsheet.pdf
+
+*For GGPLOT**
+Top 50 Graph Types
+http://r-statistics.co/Top50-Ggplot2-Visualizations-MasterList-R-Code.html#Violin%20Plot
+
+GGplot Cheat Sheet
+https://rstudio.com/wp-content/uploads/2015/03/ggplot2-cheatsheet.pdf
+
+Color Pallets
+https://www.datanovia.com/en/blog/ggplot-colors-best-tricks-you-will-love/#predefined-ggplot-color-palettes
+
+
+Look into Wes Anderson Themes, WSJ, Economist
+
+**Number Crunching**
+
+Another Way of Pulling Summary <br/>
+#mean(household_data$HINCP) <br/>
+#quantile(household_data$HINCP) <br/>
+#sd(household_data$HINCP) <br/>
+
+Simple Explanation of Dsitributions: 
+https://nezumisa.wordpress.com/2013/06/03/different-types-of-distributions/
+
