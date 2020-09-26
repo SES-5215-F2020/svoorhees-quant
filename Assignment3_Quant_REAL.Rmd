@@ -1,6 +1,7 @@
 ---
-title: "Assignment 2: Quantitive Analysis"
+title: "Assignment 3: Quantitive Analysis"
 Date: 9/20/2020
+Name: "Sage Voorhees"
 output:
   html_document:
     toc: yes
@@ -14,7 +15,7 @@ code_folding: hide
     
 ## **Overview of Assignment**
 
-## Assignment Overview
+### Assignment Overview
 For all possible pairs of variables in your dataset, test the relationship between the two variables. Indicate
 the significance and (if appropriate) the magnitude of each relationship.
 As you work on this assignment, you may find that you’ve changed your mind about which variables you
@@ -33,6 +34,8 @@ your dataset at any time. Clearly indicate how you’ve decided to change it and
 **Categorical** <br> 
 5. Decade House Constructed (development) <br>
 6. Racial Demographics (RAC1P & HISP) <br>
+
+**Included in DataSet but not used in this particular assignment** <br>
 7. Type of Unit (BLD) <br>
 
 ```{r, message = FALSE, results='hide'}
@@ -46,35 +49,8 @@ library(dplyr)
 ```
 
 
-#####  Load Household Data Set & Housekeeping
-```{r, message = FALSE, results='hide'}
-# Load CSV (for Reference)
-household_data <- read_csv("assignment1_vars.csv")
-
-
-#Remove Scientific Notation
-options(scipen = 999)
-
-#Load New Variables (In This assignment I have decided to load new variables, so am choosing to use get_pums again instead of modifying CSV in earlier assignment. 
-  #Major changes are: 1) using PINCP instead of HINCP. 2) including HISP to make new compound Race & Ethnicity Variable. 3) Including BLD (Units in Structure)
-  
-#Show Me Variables:
-
-  #Person Level
-person_vars_2018 <- pums_variables %>%
-  distinct(year, survey, var_code, var_label, data_type, level) %>%
-
-  filter(level=="person", year==2018, survey=="acs1")
-
-
-#HouseHold Level
-hh_vars_2018 <- pums_variables %>%
-
-  distinct(year, survey, var_code, var_label, data_type, level)%>%
-
-  filter(level=="housing", year==2018, survey=="acs1")
-  
-assignment3_vars <- get_pums(variables = c("YBL", 
+#### **Code written in seperate file (trying to limit the Data Consumption of R)**
+> New_Mexico_Vars_Development <- get_pums(variables = c("YBL", 
                                           "HINCP",
                                           "RAC1P", 
                                           "JWMNP",
@@ -91,10 +67,27 @@ assignment3_vars <- get_pums(variables = c("YBL",
                 mutate(PUMA = as.numeric(PUMA))%>%
                 filter(PUMA> 00100 & PUMA <01200)%>%
                 filter(HINCP >0)%>%
-              
   
+ >dplyr::select(HINCP, RAC1P, JWMNP, NP, PUMA, HISP, AGEP, BLD, PINCP)
+  
+  >write_csv(New_Mexico_Vars_Development, "New_Mexico_Vars_Development")
+
+
+
+#####  **Load Household Data Set & Housekeeping**
+```{r, message = FALSE, results='hide'}
+
+#Load New Variables (In This assignment I have decided to load new variables, 
+  #Major changes are: 1) using PINCP in addition to HINCP. 2) including HISP to make new compound Race & Ethnicity Variable. 3) Including BLD (Units in Structure) 4)Mutating JWMNP into a categorical variable in 15 minute increments. 
+  
+#Load DataSet from CSV
+
+assignment3_vars <- read_csv("New_Mexico_Vars_Development")
+  
+#Mutate YBL to Devade House Was Built
+assignment3_vars <-assignment3_vars %>%
   mutate(development = case_when(
-                        YBL_label == "1939 or earlier" ~ "pre 1940", 
+                        YBL_label == "1939 or earlier" ~ "1 pre 1940", 
                         YBL_label == "1940 to 1949" ~ "1940s",
                         YBL_label == "1950 to 1959" ~ "1950s",
                         YBL_label == "1960 to 1969" ~ "1960s",
@@ -117,16 +110,18 @@ assignment3_vars <- get_pums(variables = c("YBL",
                                YBL_label == "2017" ~ "2010s",
                                YBL_label == "2018" ~ "2010s")) %>%
     
-  
 #Recode Journey to Work as a Categorical Variable
 mutate(JWMNP_binned = case_when(
           JWMNP <15 ~ "Less Than 15 minutes",
           JWMNP <30 & JWMNP >15 | JWMNP == 15 ~ "15 - 30 minutes",
           JWMNP >30 & JWMNP <45 | JWMNP == 45 ~ "30 - 45 minutes", 
           JWMNP >45 & JWMNP <60 | JWMNP == 60 ~ "45 - 60 minutes",
-          JWMNP >60 & JWMNP <75 | JWMNP == 75 ~ "60 - 75 minutes",)) %>%
+          JWMNP >60 & JWMNP <75 | JWMNP == 75 ~ "60 - 75 minutes",
+          TRUE ~ "No Commute Reported")) %>%
   
 #Recode Race & Ethnicity Together
+  #Carole gave me a great note on how to use the RAC1p & HISP variables instead of the RAC1P_label & HISP_labels to clean up this code. I have not had time to do so, but will do soon. 
+  
   mutate(race_ethnicity = case_when(
     
     #White
@@ -162,22 +157,13 @@ mutate(JWMNP_binned = case_when(
    # Other
    TRUE ~ "Other"))%>%
 
-select(HINCP, race_ethnicity, JWMNP_binned, NP, PUMA, development, AGEP, BLD_label, PINCP)
+dplyr::select(HINCP, race_ethnicity, JWMNP_binned, NP, PUMA, development, AGEP, BLD_label, PINCP)
 ```
-**Note about race_ethnicity variable**: For the sake of this assignment and calculating Chi-Squared Tests. I have collapsed Native Hawaiian/Pacific Islander into the Other Race or Multiracial Category. 
+**Note about race_ethnicity variable**: For the sake of this assignment and calculating Chi-Squared Tests. I have collapsed Native Hawaiian/Pacific Islander into the Other Race or Multiracial Category. I've been debating whether or not to collapes Asian Hispanic & Non-Hispanic Asian. Leaving it for the time being. 
 
 
-## Exploring Data Set (After having set new variables)
-```{r}
-#table(assignment3_vars$race_ethnicity)
-count(assignment3_vars, 'race_ethnicity')
-
-tab1(assignment3_vars$race_ethnicity, sort.group ="decreasing", cum.percent =TRUE) +
-
-
-```
-
-
+## **Exploring Data Set**
+After I made my race_ethnicity variable I decided to play around with it to 1) get a sense of where my data was and 2) find out if I needed to collapse more categories in order to do a Chi-Squared Test. 
 ```{r}
 ggplot(assignment3_vars, aes(x = race_ethnicity)) +
   geom_bar() +
@@ -189,435 +175,410 @@ ggplot(assignment3_vars, aes(x = race_ethnicity)) +
 
 ```
 
+### Wanted to get the numbers of each
+```{r}
+#table(assignment3_vars$race_ethnicity)
+count(assignment3_vars, 'race_ethnicity')
 
-## Linear Regression
-```{r, message = FALSE, results='hide'}
+tab1(assignment3_vars$race_ethnicity, sort.group ="decreasing", cum.percent =TRUE) 
 
-model <- lm(HINCP ~ JWMNP_binned + NP + development + AGEP, 
-            data = assignment3_vars)
-
-summary(model)
 ```
 
 
+## **Relationship Calculations:**
 
+### References for Data Interpretation
+SOME DUDE's (J.D. EVANS) THOUGHTS ON CORRELATION STRENGTHS from 1996 <br>
+.00-.19 = very weak <br>
+.20-.39 = weak <br>
+.40-.59 = moderate <br>
+.60-.79 = strong <br>
+.80-1.0 = very strong <br>
 
+After a discussion with Julia, I decided to use these cutoffs to inform how I described my correlations. 
 
-#Remove Scientific Notation
-options(scipen = 999)
-```
+### WHat is F and Pr in the ANOVA test Results? <br>
+The **F Value** in the ANOVA output is telling us that there is a difference in means (if it is greater than zero) and the **Pr** value is telling us the likelihood of that difference appearing in our data if there is not actually a difference
 
+## **1. Household Income**
+### 1.1 Household Income & Number of People in Household
 
-# Calculations 
-## Household Income
-### Household Income & Number of People in Household
-```{r, message = FALSE, results='hide'}
+**Type of Test**: Two continuous variables --> Pearson's Correlation --> Will generate strength and significance of relationship. 
+
+```{r, message = FALSE}
 correlation_HINCP_NP <- cor.test(assignment3_vars$HINCP, assignment3_vars$NP) 
 correlation_HINCP_NP
 ```
 
-### Household Income & Commute To Work
-```{r, message = FALSE, results='hide'}
+**Results interpreted**: The relationship is significant, thus there is a very weak positive relationship between Household Income and Number of People in Household. Roughly speaking, there is some indication that as the number of people in a household increases, so does income. 
+
+### 1.2 Household Income & Commute To Work
+**Type of Test**: A continuous variable and a categorical variable with more than three levels --> Analysis of Variance Test (ANOVA) --> Will give the significance of the relationship <br>
+
+**Results interpreted**: The ANOVA test shows us that there is a significant relationship between Household Income and Commute to work. Tukeys (not Turkeys!) Honestly Significant Test allows us to go further into this significance and show the varying magnitude of differences between the categories. ie, we see that less than 15-30min to 30-45 minutes has more of a difference than 30-45min to 45-60min. <br>
+
+**QUestion for Grader** If you could point me to a resource to better understand the results of Tukeys HSD, I'd be appreciative. 
+
+```{r, message = FALSE}
 anova_HINCP_JWMNP <- aov(HINCP ~ JWMNP_binned, data = assignment3_vars) 
 summary(anova_HINCP_JWMNP)
 
+
+```
+
+```{r}
 # Calculate Tukey's Honestly Signigicant Difference Test
 differences_HINCP_JWMNP <- TukeyHSD(anova_HINCP_JWMNP)
 
 as_tibble(cbind(pair=row.names(differences_HINCP_JWMNP$HINCP),differences_HINCP_JWMNP$JWMNP))
-```
+differences_HINCP_JWMNP
 
-                Df    Sum Sq   Mean Sq
-JWMNP_binned     4 1.041e+12 2.603e+11
-Residuals    13562 8.359e+13 6.164e+09
-             F value Pr(>F)    
-JWMNP_binned   42.23 <2e-16 ***
-Residuals                      
----
-Signif. codes:  
-  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1
-  ‘ ’ 1
-805 observations deleted due to missingness
-
-
-### Household Income & Age of Person
-### Household Income & Decade House Constructed
-### Household Income & Race
-
-
-
-
-
-
-
-
-So for example the F Valueq
-in the ANOVA output is telling us that there is a difference in means (if it is greater than zero)
-and the Pr value is telling us the likelihood of that difference appearing in our data if there is not actually a difference
-
-
-
-
-
-
-
-
-
-
---------------------
-
-## **Continuous Distributions**
-
-### 1. Distribution for Household Income
-
-> **For Household Income In New Mexico:** <br>
-Mean: $79,843.00 <br>
-Standard Deviation: $64,093.08 <br>
-Interquartile Range: $30,500 to 100,000 $<br>
-95 % Confidence Interval: $57,667.38 to $67,072.59 <br>
-
-
->**Discussion of Income**
-I Realized that I wanted to filter my data set to remove negative values for income. I came to this conclusion that I should filter for non-negative values when talking with Emma Colley. I did this in the code from Assignment 1 so it is not shown in this R Markdown document. 
-
-It is really striking to me how New Mexico compares to other states. The Interquartile range is the measurement that is most revealing to me. Overall the histogram is skewed right with a high concentration around 75,000$. The skew is enough that it might make sense to put this data into income quartiles. 
-
-**Historgram**
-```{r}
-hist(household_data$HINCP) 
-```
-
-
-
-**Summary: Mean, Interquartile Range**
-```{r}
-#Summary
-HINCP_summary <- summary(household_data$HINCP)
-HINCP_summary
-```
-
-**Standard Deviation**
-```{r}
-#Standard Deviation
-sd(household_data$HINCP)
-```
-
-**95% Confidence Interval** 
-```{r}
-#Step One: Take a One Sample T-Test
-conf_int<- t.test(household_data$HINCP)
-conf_int
-# Take the mean (which will be the same as the sample mean)
-conf_int$estimate
-
-#Calculate the LOWER limit
-conf_int$conf.int[1]
-
-#Calculate the UPPER limit
-conf_int$conf.int[2]
-```
-
-
---------------------
-
-
-
-### 2. Distribution for Number of People In Household
-> **For Number of People in Household In New Mexico:** <br>
-Mean: 3.07 People <br>
-Standard Deviation: 1.71  <br>
-Interquartile Range:2 people - 4 people $<br>
-95 % Confidence Interval: 3.05 -3.11 <br>
-
-> **Discussion** This pretty much checks out with what I would have guessed. I don't know if I would consider this a normal distribution since there is such a sharp peak at 2 members in a househod. 
-
-```{r}
-ggplot(household_data, aes(x=NP)) +
-  geom_histogram() +
-  scale_x_continuous(breaks=seq(0,13, by =1)) +
-  theme_wsj()
 ```
 
 
 ```{r}
-mean(household_data$NP)
-median(household_data$NP)
-quantile(household_data$NP)
-sd(household_data$NP)
+ggplot(assignment3_vars, aes(x=JWMNP_binned, y=HINCP)) +
+  geom_boxplot() +
+  theme_bw() 
+
 ```
 
-**95% Confidence Interval** 
-```{r}
-#Step One: Take a One Sample T-Test
-conf_int<- t.test(household_data$NP)
-conf_int
-# Take the mean (which will be the same as the sample mean)
-conf_int$estimate
+### 1.3 Household Income & Age of Person
+**Type of Test**: Two continuous variables --> Pearson's Correlation --> Will generate strength and significance of relationship. 
 
-#Calculate the LOWER limit
-conf_int$conf.int[1]
-
-#Calculate the UPPER limit
-conf_int$conf.int[2]
+```{r, message = FALSE}
+correlation_HINCP_AGEP <- cor.test(assignment3_vars$HINCP, assignment3_vars$AGEP) 
+correlation_HINCP_AGEP
 ```
-
-
---------------------
-
-
-
-###  3. Distribution for Commute
->**How long is the commute In New Mexico (In Minutes):** <br>
-Mean: 9.3 Minutes <br>
-Standard Deviation: 17.2 minutes  <br>
-Interquartile Range: 0 to 15 minutes $<br>
-95 % Confidence Interval: 9.05-9.60 <br>
-
->**Discussion** Im very curious about the accuracy of this dataset. I think in the future, I might be better off to convert it to a categorical variable. There seems to be a lot of rounding/not reporting. New Mexico doesn't have a "rush hour" and it is uncommon for long commutes, so I could see this being somewhat accurate. But it is hard to believe that there are so many people with no commute. It is a normal-ish distribution if you exclude the less than 5 minute commute times. 
-
+**Analysis of Results**: This test is showing that there is a significantly significant (within the 95% confidence interval), but VERY weak correlation between Household Income and Age of Person. When I graph this, it makes sense that there is no readily apparent relationship. Although I think without looking at the Data I would have expected there to be one. 
 ```{r}
-ggplot(household_data, aes(x=JWMNP)) +
-  geom_histogram() +
-  scale_x_continuous(breaks=seq(0,160, by =10)) +
-  theme_wsj()
+ggplot(assignment3_vars, aes(AGEP, HINCP)) +
+  geom_point(alpha=.5, sixe =5)
 ```
 
 
-```{r}
-mean(household_data$JWMNP)
-quantile(household_data$JWMNP)
-sd(household_data$JWMNP)
+### 1.4 Household Income & Decade House Constructed
+
+**Type of Test**: A continuous variable and a categorical variable with more than three levels --> Analysis of Variance Test (ANOVA) --> Will give the significance of the relationship <br>
+
+```{r, message = FALSE}
+anova_HINCP_development <- aov(HINCP ~ development, data = assignment3_vars) 
+summary(anova_HINCP_development)
+
+
 ```
+**Analysis of Results**: The relationship is significant. The relationship between these variables is not due to chance since the inverse would only happen once in 2e-16 times of running the correlation. 
 
-**95% Confidence Interval** 
 ```{r}
-#Step One: Take a One Sample T-Test
-conf_int<- t.test(household_data$JWMNP)
-conf_int
-# Take the mean (which will be the same as the sample mean)
-conf_int$estimate
-
-#Calculate the LOWER limit
-conf_int$conf.int[1]
-
-#Calculate the UPPER limit
-conf_int$conf.int[2]
+ggplot(assignment3_vars, aes(x=development, y=HINCP)) +
+         geom_violin(color="sienna", fill ="sienna2", alpha=.75, size =.5) +
+  theme_clean()
 ```
 
 
+### 1.5 Household Income & Race_Ethnicity
 
---------------
+**Type of Test**: A continuous variable and a categorical variable with more than three levels --> Analysis of Variance Test (ANOVA) --> Will give the significance of the relationship <br>
 
+```{r, message = FALSE}
+anova_HINCP_race_ethnicity <- aov(HINCP ~ race_ethnicity, data = assignment3_vars) 
+summary(anova_HINCP_race_ethnicity)
 
-### 4. Distribution for Age
->**What is the Age Distribution in New Mexico:** <br>
-Mean: 43.3 years old <br>
-Standard Deviation: 23.8 years  <br>
-Interquartile Range: 23 years old to 63 years old minutes $<br>
-95 % Confidence Interval: 42.9 years old  to 43.7 years old  <br>
-
-> **Discussion** People leaving New Mexico in their twenties and coming back when they are older is SUCH a trope of NM, interesting to see that reflected in the data. Definitely not a normal distribution, looks like a bimodal distribution. 
+```
+**Analysis of Results**: The relationship is significant. The relationship between these variables is not due to chance since the inverse would only happen once in 2e-16 times of running the correlation. 
 
 ```{r}
-ggplot(household_data, aes(x=AGEP)) +
-  geom_histogram() +
-  scale_x_continuous(name="Age", 
-                     breaks = seq(0,100, by = 5),
-                     labels = paste(seq(0,100, by = 5),
+ggplot(assignment3_vars, aes(x=race_ethnicity, y=HINCP, fill=race_ethnicity)) +
+         geom_violin(alpha=.75, size =.5) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  coord_flip()
+```
+
+
+## **2. Number of People in House**
+
+### 2.1  Number of People in House & Income <br>
+See 1.1 <br>
+
+### 2.2 Number of People in House & Commute to Work
+**Type of Test**: A continuous variable and a categorical variable with more than three levels --> Analysis of Variance Test (ANOVA) --> Will give the significance of the relationship <br>
+
+```{r, message = FALSE}
+anova_NP_JWMNP <- aov(NP ~ JWMNP_binned, data = assignment3_vars) 
+summary(anova_NP_JWMNP)
+```
+**Analysis of Results**: The relationship is significant. The relationship between these variables is not due to chance since the inverse would only happen once in 8.7e-14 times of running the correlation. It seems looking at the graph is that the correlation itself would be very weak. 
+```{r}
+ggplot(assignment3_vars, aes(x=NP, y=JWMNP_binned)) +
+  geom_point(position = "jitter", size =.25, alpha =.5) +
+  scale_x_continuous(breaks = seq(0,13, by = 1),
+                     labels = paste(seq(0,13, by = 1),
                      "", sep = "")) +
+   theme_wsj()
+
+```
+
+### 2.3 Number of People in House & Age of Person
+**Type of Test**: Two Continuous Variables --> Pearson's Correlation --> Will give us both significance and strength of correlation
+```{r, message = FALSE}
+correlation_NP_AGEP <- cor.test(assignment3_vars$NP, assignment3_vars$AGEP) 
+correlation_NP_AGEP
+```
+**Analysis of Results** This test tells us that there is a significant relationship between number of people in house and the Age of Person. The correlation is a moderate inverse relationship. So as age increases, the number of people in household tends to decrease. This makes sense given that basically no-one in the dataset under ~18 years old is living alone. 
+
+```{r}
+ggplot(assignment3_vars, aes(AGEP, NP)) +
+  geom_point(alpha=.5, sixe =25, color="Sienna3") +
+   scale_y_continuous(name ="Number of People Living Together",
+                      breaks = seq(0,13, by = 1),
+                     labels = paste(seq(0,13, by = 1),
+                     "", sep = "")) +
+  coord_flip() +
+  theme_wsj()
+```
+
+### 2.4 Number of People in House & Decade House Constructed
+**Type of Test**: A continuous and categorical variable with more than 3 levels --> ANOVA test --> Significance of the Relationship
+
+```{r, message = FALSE}
+anova_NP_development <- aov(NP ~ development, data = assignment3_vars) 
+summary(anova_NP_development)
+```
+
+```{r}
+# Calculate Tukey's Honestly Signigicant Difference Test
+differences_NP_development <- TukeyHSD(anova_NP_development)
+as_tibble(cbind(pair=row.names(differences_NP_development$NP),differences_NP_development$development))
+differences_NP_development
+
+```
+**Analysis of Test**: The ANOVA test shows that there is a statistically significant correlation between Number of People and Decade the home was built in. 
+
+```{r}
+ggplot(assignment3_vars,aes( x= development, y=NP)) +
+  scale_y_continuous(name ="Number of People Living Together",
+                      breaks = seq(0,13, by = 1),
+                     labels = paste(seq(0,13, by = 1),
+                     "", sep = ""))+
+  geom_boxplot() +
   theme_wsj()
 ```
 
 
-```{r}
-mean(household_data$AGEP)
-quantile(household_data$AGEP)
-sd(household_data$AGEP)
+### 2.5 Number of People in House & Race and Ethnicity
+
+
+## **3. Commute to Work**
+
+### 3.1 Commute to Work & Income <br>
+See 1.2 <br>
+
+### 3.2 Commute to Work & Number of People in House <br>
+See 2.2 <br>
+
+### 3.3 Commute to Work & Age of Person <br>
+
+**Type of Test**:  Categorical Variable & Continuous variable --> ANOVA Test --> Will give significance of relationship.
+
+anova_NP_JWMNP <- aov(NP ~ JWMNP_binned, data = assignment3_vars) 
+summary(anova_NP_JWMNP)
+
+```{r, message = FALSE}
+anova_JWMNP_AGEP <- aov(AGEP ~JWMNP_binned , data = assignment3_vars) 
+summary(anova_JWMNP_AGEP)
 ```
 
-**95% Confidence Interval** 
 ```{r}
-#Step One: Take a One Sample T-Test
-conf_int<- t.test(household_data$AGEP)
-conf_int
-# Take the mean (which will be the same as the sample mean)
-conf_int$estimate
+# Calculate Tukey's Honestly Signigicant Difference Test
+differences_JWMNP_AGEP <- TukeyHSD(anova_JWMNP_AGEP)
+as_tibble(cbind(pair=row.names(differences_JWMNP_AGEP$JWMNP),differences_JWMNP_AGEP$AGEP))
+differences_JWMNP_AGEP
 
-#Calculate the LOWER limit
-conf_int$conf.int[1]
+```
+```{r, message = FALSE, results='hide'}
 
-#Calculate the UPPER limit
-conf_int$conf.int[2]
+ggplot(assignment3_vars,aes(x=AGEP, y=JWMNP_binned)) +
+  geom_point(size=3,alpha=.7) + 
+  geom_segment(aes(x=AGEP, 
+                   xend=AGEP, 
+                   y=0, 
+                   yend=JWMNP_binned)) + 
+  labs(title="Whats Your Drive?", 
+       subtitle="Commute Time Versus Age", 
+       caption="source: ACS1") + 
+  scale_y_discrete(name="Commute Time in Minutes") +
+  scale_x_continuous(name="Age of Individual")
+  theme(axis.text.x = element_text(angle=65, vjust=0.6)) +
+    theme_fivethirtyeight()
+
+
 ```
 
+**Analysis of Test**: The Anova test shows that there is not a statistically significant correlation between Age and Commute time to work. This seems to match the graph. 
 
-
-
-## **Proportions of Categorical Variables**
-
-### 5. Proportions of Construction Decade
-> **Discussion** This seems to really highlight the new construction drop-off in 2008. In the Vis exercise, I feel like I was trying to get fancy with violin plots, when this is what would have helped make the case the clearest. I think is the closest to a normal distribution that I have. 
-
+### 3.4 Commute to Work & Decade House Constructed
+**Type Of Test**: Two categorical variables --> Chi-Squared Test --> Will give significance
 ```{r}
-ggplot(household_data, aes(x=development)) +
-  geom_bar() +
-  theme_wsj()
-```
-**Proportions & 95% COnfidence Intervals**
+chi_sq <- chisq.test(assignment3_vars$development, assignment3_vars$JWMNP_binned) 
 
-```{r}
-#Get list of all possible values
-decade <- unique(household_data$development)
-decade
+chi_sq
+#Observed
+chi_sq$observed
 
-#Get share of Sample in EACH Category
-fourties <- t.test(household_data$development==decade[1])
-fifties <- t.test(household_data$development==decade[2])
-sixties <- t.test(household_data$development==decade[3])
-seventies <- t.test(household_data$development==decade[4])
-eighties <- t.test(household_data$development==decade[5])
-nineties <- t.test(household_data$development==decade[6])
-two_thousands <- t.test(household_data$development==decade[7])
-two_thousand_tens <-  t.test(household_data$development==decade[8])
-
-#Get the Shares
-shares <- tibble(Decade = c("1940s",
-                            "1950s",
-                            "1960s",
-                            "1970s",
-                            "1980s",
-                            "1990s",
-                            "2000s"),
-                 
-                 Share = c(fourties$estimate,
-                             fifties$estimate,
-                             sixties$estimate,
-                             seventies$estimate,
-                             eighties$estimate,
-                             nineties$estimate,
-                             two_thousands$estimate),
-                 
-                 Low = c(fourties$conf.int[1],
-                             fifties$conf.int[1],
-                             sixties$conf.int[1],
-                             seventies$conf.int[1],
-                             eighties$conf.int[1],
-                             nineties$conf.int[1],
-                             two_thousands$conf.int[1]),
-                  
-                 High = c(fourties$conf.int[2],
-                             fifties$conf.int[2],
-                             sixties$conf.int[2],
-                             seventies$conf.int[2],
-                             eighties$conf.int[2],
-                             nineties$conf.int[2],
-                             two_thousands$conf.int[2]))
-knitr::kable(shares, caption = "Proportions and 95-percent confidence intervals") 
-```
-**notes** Ryan Johnson helped me find a missing parenthesis in this code. I owe him my sanity. 
-
-Future Deve. 
-ggplot(household_data, aes(x=development, y= Share, ymin=Low, ymax= High)) +
-  scale_y_continuous( name = "Share of Population")
-  geom_bar() +
-  theme_wsj()
-
-**proportions**
-```{r}
-#See Unique Values
-#unique(household_data$development)
-#Pull Into table
-#table(household_data$development)
-#Create Proportions by dividing above table by total number of observations
-#table(household_data$development)/sum(table(household_data$development))
-
-#Or calculate directly using 
-#mean(household_data$development == "1970s")
-```
-**95% COnfidence Interval**
-```{r}
-#Use T-Test
-t.test(household_data$development == "1940s")
+#Expected
+chi_sq$expected
 ```
 
-### 6. Proportions of Racial Demographics
-
-> **Discussion** I really want to break out hispanic ethnicity. Currently the distribution is all lumped into largely one homogenous category. 
-
 ```{r}
-ggplot(household_data, aes(x=RAC1P_label)) +
-  geom_bar() +
-  theme_fivethirtyeight()
+ggplot(assignment3_vars, aes(x=JWMNP_binned, y=development)) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  geom_point(position ="jitter", alpha =.75, color="sienna3", size=.25) +
+  scale_x_discrete( name= "Commute to Work") +
+  scale_y_discrete( name ="Decade\n House Built")
+  
 ```
-**Proportions & 95% COnfidence Intervals**
-
-Notes: Running into this error, "Error in t.test.default(household_data$RAC1P == decade[1]) : not enough 'x' observations"
-cannot seem to get around it. 
+**Analysis of Test**: The Chi-Squared Test indicated that there is a significant relationship between Commute to Work and Decade Home was built. 
 
 
+### 3.5 Commute to Work & Race and Ethnicity
+**Type of Test**: Two Categorical variables --> Chi-Squared Test --> Significance of Relationship
 ```{r}
-#Get list of all possible values
-races <- unique(household_data$RAC1P_label)
-races
+chi_sq_race_JWMNP <- chisq.test(assignment3_vars$JWMNP_binned, assignment3_vars$race_ethnicity) 
 
-#TroubleShooting
-table(household_data$RAC1P_label)
+chi_sq_race_JWMNP
+#Observed
+chi_sq_race_JWMNP$observed
 
-#Get share of Sample in EACH Category
-white <- t.test(household_data$RAC1P_label==races[1])
-american_indian <- t.test(household_data$RAC1P_label==races[2])
-two_or_more <- t.test(household_data$RAC1P_label==races[3])
-american_indian_tribe_spec <- t.test(household_data$RAC1P_label==races[4])
-asian <- t.test(household_data$RAC1P_label==races[5])
-black <- t.test(household_data$RAC1P_label==races[6])
-some_other_race <- t.test(household_data$RAC1P_label==races[7])
-hawaiian_pacific_islander <- t.test(household_data$RAC1P_label==races[8])
-alaska_native <- t.test(household_data$RAC1P_label==races[9])
-
-#Get the Shares
-shares <- tibble(Decade = c("White",
-                            "American Indian",
-                            "Two Or More",
-                            "American Indian Specific Tribe",
-                            "Asian",
-                            "Black",
-                            "Some Other Race",
-                            "Hawaii Pacific Islander",
-                            "Alaska Native"),
-                 
-                 `Share` = c(white$estimate,
-                             american_indian$estimate,
-                             two_or_more$estimate,
-                             american_indian_tribe_spec$estimate,
-                             asian$estimate,
-                             black$estimate,
-                             some_other_race$estimate,
-                             hawaiian_pacific_islander$estimate,
-                             alaska_native$estimate),
-                 
-                 Low = c(white$conf.int[1],
-                             american_indian$conf.int[1],
-                             two_or_more$conf.int[1],
-                             american_indian_tribe_spec$conf.int[1],
-                             asian$conf.int[1],
-                             black$conf.int[1],
-                             some_other_race$conf.int[1],
-                             hawaiian_pacific_islander$conf.int[1],
-                             alaska_native$conf.int[1]),
-                  
-                 High =c(white$conf.int[2],
-                             american_indian$conf.int[2],
-                             two_or_more$conf.int[2],
-                             american_indian_tribe_spec$conf.int[2],
-                             asian$conf.int[2],
-                             black$conf.int[2],
-                             some_other_race$conf.int[2],
-                             hawaiian_pacific_islander$conf.int[2],
-                             alaska_native$conf.int[2]))
-knitr::kable(shares, caption = "Proportions and 95-percent confidence intervals") 
+#Expected
+chi_sq_race_JWMNP$expected
 ```
 
+**Analysis of Test**: The Chi-Squared Test indicated that there is a significant relationship between Race & Ethnicity and Commute to work. 
+```{r}
+ggplot(assignment3_vars, aes(x=JWMNP_binned, y=race_ethnicity)) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  geom_point(position ="jitter", alpha =.75, color="sienna3", size=.25) +
+  scale_x_discrete( name= "Commute to Work") +
+  scale_y_discrete( name ="Race and \n Ethnicity")
+```
 
+## **4. Age of Person & Income**
+
+### 4.1 Age of Person & Household Income <br>
+See 1.3 <br>
+
+### 4.2 Age of Person & Number of People in House <br>
+See 2.3 <br>
+
+### 4.3 Age of Person & Commute to Work <br>
+See 3.3 <br>
+
+### 4.4 Age of Person & Decade House Constructed <br>
+**Type of Test**: A continuous variable and a Categorical Variable --> ANOVA Test --> Will give us significance of relationship. 
+
+```{r, message = FALSE, results='hide'}
+anova_development_AGEP <- aov(AGEP ~development , data = assignment3_vars) 
+summary(anova_development_AGEP)
+```
+
+```{r}
+# Calculate Tukey's Honestly Signigicant Difference Test
+differences_development_AGEP <- TukeyHSD(anova_development_AGEP)
+as_tibble(cbind(pair=row.names(differences_development_AGEP$development),differences_development_AGEP$AGEP))
+differences_JWMNP_AGEP
+
+```
+```{r}
+ggplot(assignment3_vars, aes(x=development, y=AGEP)) +
+         geom_violin(color="sienna", fill ="sienna2", alpha=.75, size =.5) +
+  theme_clean() + 
+  coord_flip()
+```
+**Analysis of Test**: The Anova Test indicated that there is a significant relationship between Age of Person and Decade Home was built. 
+
+### 4.5 Age of Person & Race and Ethnicity
+
+**Type of Test**: A continuous variable and a Categorical Variable --> ANOVA Test --> Will give us significance of relationship. 
+
+```{r, message = FALSE}
+anova_race_ethnicity_AGEP <- aov(AGEP ~race_ethnicity , data = assignment3_vars) 
+summary(anova_race_ethnicity_AGEP)
+```
+
+```{r}
+# Calculate Tukey's Honestly Signigicant Difference Test
+differences_race_ethnicity_AGEP <- TukeyHSD(anova_race_ethnicity_AGEP)
+as_tibble(cbind(pair=row.names(differences_race_ethnicity_AGEP$race_ethnicity),differences_race_ethnicity_AGEP$AGEP))
+differences_race_ethnicity_AGEP
+
+```
+
+**Analysis of Test**: The ANOVA Test indicated that there is a significant relationship between Age of Person and Race & Ethnicity. 
+
+```{r}
+ggplot(assignment3_vars, aes(x=race_ethnicity, y=AGEP)) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  geom_point(position ="jitter", alpha =.75, color="sienna3", size=.25) +
+  scale_x_discrete( name= "Race & Ethnicity") +
+  scale_y_discrete( name ="Age") +
+  coord_flip()
+  
+```
+
+## **5. Decade Home Constructed**
+
+### 5.1 Decade Home Constructed & Household Income  <br>
+See 1.4 <br>
+
+### 5.2 Decade Home Constructed & Numper of People <br>
+See 2.4 <br>
+
+### 5.3 Decade Home Constructed & Commute to Work <br>
+See 3.4 <br>
+
+### 5.4 Decade Home Constructed & Age of Person <br>
+See 4.4 <br>
+
+### 5.5 Decade Home Constructed & Race and Ethnicity <br>
+
+**Type of Test** Two Categorical Variables --> CHi Squared Test --> Significance of Relationship (Though it will be wonky due to low numbers in Race&Ethnicity Categories)
+
+```{r}
+chi_sq_race_development <- chisq.test(assignment3_vars$development, assignment3_vars$race_ethnicity) 
+
+chi_sq_race_development
+#Observed
+chi_sq_race_development$observed
+
+#Expected
+chi_sq_race_development$expected
+```
+
+**Analysis of Test**: The Chi-Squared Test indicated that there is a significant relationship between Race & Ethnicity and Decade Home Was Built.
+```{r}
+ggplot(assignment3_vars, aes(x=development, y=race_ethnicity)) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  geom_point(position ="jitter", alpha =.75, color="sienna3", size=.25) +
+  scale_x_discrete( name= "Decade Home Was Built") +
+  scale_y_discrete( name ="Race and \n Ethnicity")
+```
+
+## **6 Race and Ethnicity**
+
+### 6.1 Race and Ethnicity & Household Income
+See 1.5
+
+### 6.2  Race and Ethnicity & Number of People in House
+See 2.5
+
+### 6.3  Race and Ethnicity & COmmute to Work
+See 3.5
+
+### 6.4 Race and Ethnicity & Age of Person
+See 4.5 
+
+### 6.5 Race and Ethnicity & Year House Constructed
+See 5.5
 
 
 
@@ -628,6 +589,8 @@ knitr::kable(shares, caption = "Proportions and 95-percent confidence intervals"
 Hello! I see this area of my assignment as predominantly a resource for myself as I learn R and as a resource to R if I ever need to return after a hiatus (and have forgotten everything I know). 
 
 Feel free to look through, but there is no need to grade anything in this section. 
+
+R Collaborative Flowchart: https://miro.com/app/board/o9J_klc5-mA=/
 
 
 ** Sage's Troubleshooting Checklist** <br/>
