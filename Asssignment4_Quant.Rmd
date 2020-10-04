@@ -1,0 +1,409 @@
+---
+title: "Assignmnet4_quant"
+author: "Sage Grey"
+date: "9/27/2020"
+Name: "Sage Voorhees"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+    theme: cosmo
+code_folding: hide
+---
+
+## **Overview of Assignment**
+
+The intention of Assignment 4 is to perform and analyze a linear regression from our DataSet. In this assignment I am continuing to use information about New Mexico from the 2018 American Community Survey. I am looking primarily at the following variables. There are 15,043 observations in this dataset.  
+
+
+#### **Variables** 
+**Continuous** <br>
+1. Household Income (HINCP)  <br>
+2. Number of People in Household (NP) <br>
+3. Commute to work (JWMNP) <br>
+4. Age of Person (AGEP) <br>
+
+**Categorical** <br> 
+5. Decade House Constructed (development) <br>
+6. Racial Demographics (RAC1P & HISP) <br>
+7. Type of Unit (BLD) <br>
+
+Number of Observations in DataSet: 15,043
+
+## **House Keeping**
+
+#### Loading Libraries
+```{r, message = FALSE, results='hide'}
+library(tidyverse)
+library(tidycensus)
+library(ggplot2)
+library(ggthemes)
+library(plyr)
+library(epiDisplay)
+library(dplyr)
+library(gridExtra)
+```
+
+
+#### **Code written in separate file (trying to limit the Data Consumption of R)**
+New_Mexico_Vars_Development <- get_pums(variables = c("YBL", 
+                                          "HINCP",
+                                          "RAC1P", 
+                                          "JWMNP",
+                                          "NP", 
+                                          "PUMA",
+                                          "HISP", 
+                                          "AGEP", 
+                                          "BLD",
+                                          "PINCP"),
+                state= "NM",
+                year =2018,
+                survey ="acs1",
+                recode=TRUE) %>%
+                mutate(PUMA = as.numeric(PUMA))%>%
+                filter(PUMA> 00100 & PUMA <01200)%>%
+                filter(HINCP >0)%>%
+  
+ dplyr::select(HINCP, RAC1P, JWMNP, NP, PUMA, HISP, AGEP, BLD, PINCP)
+  
+write_csv(New_Mexico_Vars_Development, "New_Mexico_Vars_Development")
+
+
+### **Adjusting Variables**
+
+For this assignment, I wanted to condense some of my variables to make the categories make more sense for the state of New Mexico. 
+This included: <br>
+1. Combining Race and Ethnicity. New Mexico is considered a tri-cultural state with primarily White, Hispanic and Native American residents. Using only race or ethnicity did not capture this cultural diversity appropriately. 
+
+2. Combining apartment types into condensed categories. As a low-density state, having gradations of apartment complexes that would make sense in a larger/more dense state did not make sense in my context. <br>
+
+3. Binning Construction Dates. In previous assignments I had broken down the year a structure was built by decade, I believe that it makes more sense to have these in 20 year bins. <br> 
+
+In making these adjustments, I used three ggplots to see how my data was changing. I have left them plotted here for reference. 
+
+
+
+#####  **Load Household Data Set & Shortening Vars**
+
+
+*Question for grader*:
+
+1. In my data set, 14 people are being coded as "other". When I sleuth through my dataset, I see that they are all Two or More Races & Non-Hispanic. 
+In my understanding, line 160 should be covering them,  *RAC1P_label == "Two or More Races" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Other Race or Multiracial (NH)",* There is probably an error I am not seeing, but can you help me see it? 
+
+
+2. Carole gave me a great note on how to use the RAC1p & HISP variables instead of the RAC1P_label & HISP_labels to clean up this code. I have not had time to do so, but will do soon. 
+```{r, message = FALSE, results='hide'}
+
+#Load DataSet from CSV
+
+assignment4_vars <- read_csv("New_Mexico_Vars_Development")
+  
+
+assignment4_vars <-assignment4_vars %>%
+  
+#Mutate Building Type
+  mutate(bld_type =case_when(
+                        BLD_label == "One-family house detached" ~ "1fam_home",
+                        BLD_label == "One-family house attached" ~ "1fam_home_atch",
+                        BLD_label == "2 Apartments" ~ "duplex",
+                        BLD_label == "Mobile home or trailer" ~ "mobile_home_trailer",
+                        BLD_label == "Boat, RV, van, etc." ~ "mobile_home_trailer",
+                        BLD_label == "3-4 Apartments" ~ "apartment",
+                        BLD_label == "5-9 Apartments" ~ "apartment",
+                        BLD_label == "10-19 Apartments" ~ "apartment",
+                        BLD_label == "20-49 Apartments" ~ "apartment",
+                        BLD_label == "50 or more apartments" ~ "apartment", 
+                        TRUE ~ "Other" )) %>%
+  
+#Mutate YBL to Decade House Was Built
+  mutate(when_built = case_when(
+                        YBL_label == "1939 or earlier" ~ "1 pre 1940", 
+                        YBL_label == "1940 to 1949" ~ "1.2 40s/50s",
+                        YBL_label == "1950 to 1959" ~ "1.2 40s/50s",
+                        YBL_label == "1960 to 1969" ~ "1.3 60s/70s",
+                        YBL_label == "1970 to 1979" ~ "1.3 60s/70s",
+                        YBL_label == "1980 to 1989" ~ "1.4 80s/90s",
+                        YBL_label == "1990 to 1999" ~ "1.4 80s/90s",
+                        YBL_label == "2000 to 2004" ~ "2000s/10s",
+                        YBL_label == "2005"~ "2000s/10s" ,
+                        YBL_label == "2006"~ "2000s/10s" ,
+                        YBL_label == "2007"~ "2000s/10s" ,
+                        YBL_label == "2008"~ "2000s/10s",
+                        YBL_label == "2009" ~ "2000s/10s",
+                               YBL_label == "2010" ~ "2000s/10s",
+                               YBL_label == "2011" ~ "2000s/10s",
+                               YBL_label == "2012" ~ "2000s/10s",
+                               YBL_label == "2013" ~ "2000s/10s",
+                               YBL_label == "2014" ~ "2000s/10s",
+                               YBL_label == "2015" ~ "2000s/10s",
+                               YBL_label == "2016" ~ "2000s/10s",
+                               YBL_label == "2017" ~ "2000s/10s",
+                               YBL_label == "2018" ~ "2000s/10s",
+                        TRUE ~"Other")) %>%
+    
+#Recode Journey to Work as a Categorical Variable
+mutate(JWMNP_binned = case_when(
+          JWMNP <15 ~ "Less Than 15 minutes",
+          JWMNP <30 & JWMNP >15 | JWMNP == 15 ~ "15 - 30 minutes",
+          JWMNP >30 & JWMNP <45 | JWMNP == 45 ~ "30 - 45 minutes", 
+          JWMNP >45 & JWMNP <60 | JWMNP == 60 ~ "45 - 60 minutes",
+          JWMNP >60 & JWMNP <75 | JWMNP == 75 ~ "60 - 75 minutes",
+          TRUE ~ "No Commute Reported")) %>%
+  
+#Recode Race & Ethnicity Together
+  #Carole gave me a great note on how to use the RAC1p & HISP variables instead of the RAC1P_label & HISP_labels to clean up this code. I have not had time to do so, but will do soon. 
+  
+  mutate(race_ethn = case_when(
+    
+    #White
+   RAC1P_label == "White alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "1 White (NH)",
+   RAC1P_label == "White alone" & HISP_label != "Not Spanish/Hispanic/Latino" ~ "White (Hisp)",
+   
+   #Native American (inc Alaska Native)
+   RAC1P_label == "American Indian alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Native American (NH)",
+   RAC1P_label == "American Indian alone" & HISP_label != "Not Spanish/Hispanic/Latino" ~"Other (Hisp)",
+   RAC1P_label == "American Indian and Alaska Nativeunique(R) tribes specified; or American Indian or Alaska Native, not specified and no other races" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Native American (NH)",
+   RAC1P_label == "American Indian and Alaska Native tribes specified; or American Indian or Alaska Native, not specified and no other races" & HISP_label != "Not Spanish/Hispanic/Latino"~ "Other (Hisp)",
+   RAC1P_label == "Alaska Native alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Native American (NH)",
+   RAC1P_label == "Alaska Native alone" & HISP_label != "Not Spanish/Hispanic/Latino" ~"Other (Hisp)",
+   
+   #African American or Black
+    RAC1P_label == "Black or African American alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Black (NH)",
+    RAC1P_label == "Black or African American alone" & HISP_label != "Not Spanish/Hispanic/Latino" ~ "Other (Hisp)",
+   
+   #Asian
+   RAC1P_label =="Asian alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Asian (NH)",
+   RAC1P_label =="Asian alone" & HISP_label != "Not Spanish/Hispanic/Latino" ~ "Other (Hisp)",
+   
+   #Some Other Race Alone & Multiracial 
+   
+   RAC1P_label == "Some Other Race alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Other Race or Multiracial (NH)",
+   RAC1P_label == "Some Other Race alone" & HISP_label != "Not Spanish/Hispanic/Latino"~ "Other (Hisp)",
+   RAC1P_label == "Two or More Races" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Other Race or Multiracial (NH)",
+   RAC1P_label == "Two or More Races" & HISP_label != "Not Spanish/Hispanic/Latino"~ "Other (Hisp)",
+   
+   #Native Hawaiian, Pacific Islander --> Coded as Other Race
+   RAC1P_label == "Native Hawaiian and Other Pacific Islander alone" & HISP_label == "Not Spanish/Hispanic/Latino" ~ "Other Race or Multiracial (NH)",
+   RAC1P_label == "Native Hawaiian and Other Pacific Islander alone" & HISP_label != "Not Spanish/Hispanic/Latino" ~ "Other (Hisp)", 
+   
+   # Other
+   TRUE ~ "Other"))%>%
+  
+  
+
+dplyr::select(HINCP, race_ethn, RAC1P, HISP, JWMNP_binned, NP, PUMA, when_built, AGEP, bld_type, PINCP)
+```
+
+
+
+
+
+## **Exploring DataSet**
+```{r}
+# 4 figures arranged in 2 rows and 2 columns
+
+#Explore Race and Ethnicity Variables 
+
+r_e <- ggplot(assignment4_vars, aes(x = race_ethn)) +
+  geom_bar(fill="sienna3", alpha=.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="Race & Ethnicity") +
+    scale_y_continuous(name= "#Survey Respondants",
+                       breaks = seq(0,8000, by = 2000),
+                     labels = paste(seq(0,8000, by = 2000),
+                     "", sep = "")) +
+  coord_flip()+
+  theme_classic()
+
+
+
+#Explore Building Type
+
+bld <- ggplot(assignment4_vars, aes(x =bld_type)) +
+  geom_bar(fill="sienna3", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="Home Type") +
+    scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,8000, by = 2000),
+                     labels = paste(seq(0,8000, by = 2000),
+                     "", sep = "")) +
+  coord_flip() +
+  theme_classic()
+
+
+
+
+# Explore Decade Home Was Built
+dev <- ggplot(assignment4_vars, aes(x = when_built)) +
+  geom_bar(fill= "sienna3", alpha=.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+  scale_x_discrete(name="Decade structure was built") +
+    scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,8000, by = 2000),
+                     labels = paste(seq(0,8000, by = 2000),
+                     "", sep = "")) +
+  coord_flip() +
+  theme_classic()
+
+# Plot Together
+
+grid.arrange(r_e,dev, bld, ncol=2, nrow=2)
+
+```
+
+##### Further Explore R&E to condense categories
+Based on the previous graphs, I wanted a graph that would show me more clearly the numbers in each category. After unsuccessfully looking for how to at geom_text to the bar graph with only an x variable, I found another way to see this information visually. 
+
+```{r}
+
+
+table(assignment4_vars$race_ethn)
+count(assignment4_vars, 'race_ethn')
+
+r_e_2 <- tab1(assignment4_vars$race_ethn, sort.group ="decreasing", cum.percent =TRUE) 
+
+```
+
+
+
+## **Model** 
+
+Below is a model for Household Income (dependent variable) that takes into consideration When the Structure/Home was built, Race&Ethnicity of the respondent, building type, and age of respondent. 
+
+
+The base cases are set to:
+
+*Race/Ethnicity:* White (NH) <br>
+*Home Type:* One family home, detached <br>
+*decade constructed*: Pre-1940s <br>
+
+
+##### MODEL 1: Baseline
+```{r}
+model <- lm(HINCP ~ when_built + race_ethn + bld_type + AGEP, data =assignment4_vars)
+summary(model)
+```
+
+
+###  **Analysis:** 
+In this model, I am looking at how Household Income varies with race/ethnicity, the decade a structure was built, the type of home it is and the age of the individual. The population I am looking at is a sample of individuals in New Mexico who have reported non-negative Household Income.
+
+What the linear regression gives me is an adjusted R-Squared Value of 0.099. This tells me that 9.9% of the variation in Household Income can be explained  by differences in the independent variable. Not all of these relationships are statistically significant, but most of them are, including age, house-type (trailer, apartment, single-family) and Hispanic ethnicity.
+
+**How does the type of home impact household income?** <br>
+
+Using detached single-family homes as a base case we see that: <br>
+
+If someone was living in an apartment, they would on average have a household income that was $48,370 less. This relationship is statistically significant with a p-value of  2e-16. <br>
+
+If someone was living in a trailer/mobile home, their household income on average would be $37,357 less with a statistically significant p-value of 2e-16. <br>
+
+If someone was living in a duplex, their household income on average would be $49,302 less with a statistically significant p-value of 2e-16. <br>
+
+If someone was living in an attached single family home, their household income on average would be $11,213 less with a statistically significant p-value of 7e-4. <br>
+
+
+**How does when the structure/home was built impact household income?** <br>
+
+Using structures built before 1940 as the base case we see that: <br>
+
+There is not a statistically significant relationship between pre-1940s buildings and buildings built in the 40s/50s or 60s/70s, however, there are statistically significant relationship between pre-1940s buildings and buildings built since the 1980s. 
+
+For someone who lives in a structure built in the 80s/90s, on average we see that their household income is  $13653 higher than someone living in a house/building that was constructed before 1940. This relationship is significant with a p-value of 1.64e-05. 
+
+For someone who lives in a structure built in the last twenty years, on average we see that their household income is  $26118 higher than someone living in a house/building that was constructed before 1940. This relationship is significant with a p-value of 1.54e-15. 
+
+
+**How does race & ethnicity impact household income?** <br>
+
+For race & ethnicity, I think it is important to evaluate who to use as the base-case. For this analysis I chose to use non-Hispanic whites as the base since they are the largest share of the respondents. <br>
+
+In this model we are not able to show a relationship between Non Hispanic whites 1. "Non-Hispanic MultiRacial/Other Race, 2. Asian and 3. Other. It's relevant to note that these three categories are among the four categories with the smallest number of respondents. It is impossible to say that there is no relationship, only that our data cannot show one. Also interesting to note is that Non-Hispanic Black residents, who with 212 respondents had fewer respondents than both Non-Hispanic Multiracial (272 responses) and Asian (232 responses) do show a statistically significant relationship. This is likely indication that this relationship is strong and is one that should be considered in any evaluation of impacts of discrimiation and systemic racism in the state. 
+
+
+Using non-Hispanic whites as the base case we see that: <br>
+
+If an individual is Black and Not-Hispanic, according to this model, on average we would expect their household income to be $25,431 less. This relationship is significant with a p-value of 4.30e-06.
+
+If an individual is Native American and Not-Hispanic, according to this model, on average we would expect their household income to be $44,182 less. This relationship is significant with a p-value of 2e-16.
+
+If an individual is White and Hispanic, according to this model, on average we would expect their household income to be $26,523 less. This relationship is significant with a p-value of 2e-16.
+
+If an individual is non-white and Hispanic, according to this model, on average we would expect their household income to be $44,182 less. This relationship is significant with a p-value of 2e-16.
+
+**How does age impact household income?** <br>
+
+In our model we see that Age has an inverse relationship with household income. One additional year older corresponds with a $109.12 decrease in household income. This could possibly be explained by New Mexico's challenges with high rates of poverty among elderly populations. 
+
+
+## **R Cheat Sheet, References & Troubleshooting**
+Hello! I see this area of my assignment as predominantly a resource for myself as I learn R and as a resource to R if I ever need to return after a hiatus (and have forgotten everything I know). 
+
+Feel free to look through, but there is no need to grade anything in this section. 
+
+R Collaborative Flowchart: https://miro.com/app/board/o9J_klc5-mA=/
+
+
+** Sage's Troubleshooting Checklist** <br/>
+0. Breathe. <br/>
+1. Is everything spelled/cApiTAlized correctly? <br/>
+2. Count your parentheses(), commas, and "quotes" <br/>
+    2.1 Check poles %>%, | <br/>
+3. Have you run the R chunks that are before the chunk with your error. <br/>
+5. What is the last thing you changed? Did you make sure you changed it in ALL the places it needs to be changed?<br/>
+6. Breathe. Maybe get a glass of water.  <br/>
+7. Type in the ?function() into the Console <br/>
+8. Do a Google search for "R Markdown" + Your Problem <br/>
+9. Try retyping the function from scratch.
+10. Try copying and pasting sections in another R Chunk --> Isolate the Problem <br/>
+11. Phone a friend. <br/>
+
+**Common Errors:** <br/>
+-If you are having a function not found error, check whether or not you have run your libraries. <br/>
+-YAML error, check the very beginning of your code
+- 
+
+**If you want to see the values of a variable as they appear in your dataset**
+#Race <br/>
+#unique(household_data$RAC1P_label) <br/>
+#Hispanic <br/>
+#unique(household_data$HISP_label) <br/>
+
+### References
+
+**For General R**
+R is for Data Science
+https://r4ds.had.co.nz/index.html
+
+Data Wrangling Cheat Sheet
+https://rstudio.com/wp-content/uploads/2015/02/data-wrangling-cheatsheet.pdf
+
+*formatting*
+https://rstudio.com/wp-content/uploads/2015/02/rmarkdown-cheatsheet.pdf
+
+*For GGPLOT**
+Top 50 Graph Types
+http://r-statistics.co/Top50-Ggplot2-Visualizations-MasterList-R-Code.html#Violin%20Plot
+
+GGplot Cheat Sheet
+https://rstudio.com/wp-content/uploads/2015/03/ggplot2-cheatsheet.pdf
+
+Color Pallets
+https://www.datanovia.com/en/blog/ggplot-colors-best-tricks-you-will-love/#predefined-ggplot-color-palettes
+
+
+Look into Wes Anderson Themes, WSJ, Economist
+
+**Number Crunching**
+
+Another Way of Pulling Summary <br/>
+#mean(household_data$HINCP) <br/>
+#quantile(household_data$HINCP) <br/>
+#sd(household_data$HINCP) <br/>
+
+Simple Explanation of Dsitributions: 
+https://nezumisa.wordpress.com/2013/06/03/different-types-of-distributions/
+
+
