@@ -1759,41 +1759,42 @@ grid.arrange(r_e,dev, bld, ncol=2, nrow=2)</code></pre>
 </div>
 <div id="model" class="section level2">
 <h2><strong>Model</strong></h2>
-<p>Below is a model for Household Income (dependent variable) that takes into consideration When the Structure/Home was built, Race&amp;Ethnicity of the respondent, building type, and age of respondent.</p>
+<p>Below is a model for Household Income (dependent variable) that takes into consideration When the Structure/Home was built, Race&amp;Ethnicity of the respondent, building type, number of individuals in the household, and age of respondent.</p>
 <p>The base cases are set to:</p>
-<p><em>Race/Ethnicity:</em> White (NH) <em>Home Type:</em> One family home, detached <em>decade constructed</em>: Pre-1940s</p>
+<p><em>Race/Ethnicity:</em> White (NH) <br> <em>Home Type:</em> One family home, detached <br> <em>decade constructed</em>: Pre-1940s <br></p>
 <div id="model-1-baseline" class="section level5">
 <h5>MODEL 1: Baseline</h5>
-<pre class="r"><code>model &lt;- lm(HINCP ~ when_built + race_ethn + bld_type + AGEP, data =assignment4_vars)
+<pre class="r"><code>model &lt;- lm(HINCP ~ when_built + race_ethn + bld_type + AGEP + NP, data =assignment4_vars)
 summary(model)</code></pre>
 <pre><code>## 
 ## Call:
-## lm(formula = HINCP ~ when_built + race_ethn + bld_type + AGEP, 
-##     data = assignment4_vars)
+## lm(formula = HINCP ~ when_built + race_ethn + bld_type + AGEP + 
+##     NP, data = assignment4_vars)
 ## 
 ## Residuals:
 ##     Min      1Q  Median      3Q     Max 
-## -121992  -43289  -16690   19202  716244 
+## -138696  -41948  -15562   18241  719379 
 ## 
 ## Coefficients:
 ##                                          Estimate Std. Error t value Pr(&gt;|t|)
-## (Intercept)                              99654.27    3384.25  29.446  &lt; 2e-16
-## when_built1.2 40s/50s                    -4679.03    3441.66  -1.360 0.174000
-## when_built1.3 60s/70s                     4178.98    3199.50   1.306 0.191527
-## when_built1.4 80s/90s                    13663.43    3167.62   4.313 1.62e-05
-## when_built2000s/10s                      26089.20    3272.08   7.973 1.66e-15
-## race_ethnAsian (NH)                      -8438.42    5066.88  -1.665 0.095852
-## race_ethnBlack (NH)                     -24485.80    5335.16  -4.590 4.48e-06
-## race_ethnNative American (NH)           -44135.00    2493.15 -17.703  &lt; 2e-16
-## race_ethnOther                           -7975.90   20456.50  -0.390 0.696619
-## race_ethnOther (Hisp)                   -24510.19    2277.55 -10.762  &lt; 2e-16
-## race_ethnOther Race or Multiracial (NH)  -5901.74    4747.13  -1.243 0.213805
-## race_ethnWhite (Hisp)                   -26451.39    1468.48 -18.013  &lt; 2e-16
-## bld_type1fam_home_atch                  -11213.92    3304.80  -3.393 0.000693
-## bld_typeapartment                       -48370.62    2368.04 -20.426  &lt; 2e-16
-## bld_typeduplex                          -49302.10    5941.42  -8.298  &lt; 2e-16
-## bld_typemobile_home_trailer             -37357.62    1814.12 -20.593  &lt; 2e-16
-## AGEP                                      -109.46      27.06  -4.045 5.26e-05
+## (Intercept)                              62760.97    3838.27  16.351  &lt; 2e-16
+## when_built1.2 40s/50s                    -4950.64    3398.86  -1.457   0.1453
+## when_built1.3 60s/70s                     2560.48    3160.77   0.810   0.4179
+## when_built1.4 80s/90s                    12672.62    3128.61   4.051 5.14e-05
+## when_built2000s/10s                      24360.14    3232.57   7.536 5.13e-14
+## race_ethnAsian (NH)                      -9361.67    5004.05  -1.871   0.0614
+## race_ethnBlack (NH)                     -24271.76    5268.78  -4.607 4.12e-06
+## race_ethnNative American (NH)           -50486.23    2483.47 -20.329  &lt; 2e-16
+## race_ethnOther                          -11863.03   20202.91  -0.587   0.5571
+## race_ethnOther (Hisp)                   -26795.09    2252.24 -11.897  &lt; 2e-16
+## race_ethnOther Race or Multiracial (NH)  -7041.73    4688.42  -1.502   0.1331
+## race_ethnWhite (Hisp)                   -28909.41    1455.65 -19.860  &lt; 2e-16
+## bld_type1fam_home_atch                   -8280.26    3267.12  -2.534   0.0113
+## bld_typeapartment                       -39749.21    2379.80 -16.703  &lt; 2e-16
+## bld_typeduplex                          -38814.70    5891.96  -6.588 4.61e-11
+## bld_typemobile_home_trailer             -37563.17    1791.57 -20.967  &lt; 2e-16
+## AGEP                                       185.55      30.69   6.045 1.53e-09
+## NP                                        8400.14     429.75  19.547  &lt; 2e-16
 ##                                            
 ## (Intercept)                             ***
 ## when_built1.2 40s/50s                      
@@ -1807,42 +1808,47 @@ summary(model)</code></pre>
 ## race_ethnOther (Hisp)                   ***
 ## race_ethnOther Race or Multiracial (NH)    
 ## race_ethnWhite (Hisp)                   ***
-## bld_type1fam_home_atch                  ***
+## bld_type1fam_home_atch                  *  
 ## bld_typeapartment                       ***
 ## bld_typeduplex                          ***
 ## bld_typemobile_home_trailer             ***
 ## AGEP                                    ***
+## NP                                      ***
 ## ---
 ## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
 ## 
-## Residual standard error: 76330 on 15026 degrees of freedom
-## Multiple R-squared:  0.09922,    Adjusted R-squared:  0.09826 
-## F-statistic: 103.4 on 16 and 15026 DF,  p-value: &lt; 2.2e-16</code></pre>
+## Residual standard error: 75380 on 15025 degrees of freedom
+## Multiple R-squared:  0.1216, Adjusted R-squared:  0.1206 
+## F-statistic: 122.3 on 17 and 15025 DF,  p-value: &lt; 2.2e-16</code></pre>
 </div>
 <div id="analysis" class="section level3">
 <h3><strong>Analysis:</strong></h3>
-<p>In this model, I am looking at how Household Income varies with race/ethnicity, the decade a structure was built, the type of home it is and the age of the individual. The population I am looking at is a sample of individuals in New Mexico who have reported non-negative Household Income.</p>
-<p>What the linear regression gives me is an adjusted R-Squared Value of 0.099. This tells me that 9.9% of the variation in Household Income can be explained by differences in the independent variable. Not all of these relationships are statistically significant, but most of them are, including age, house-type (trailer, apartment, single-family) and Hispanic ethnicity.</p>
+<p>In this model, I am looking at how Household Income varies with race/ethnicity, the decade a structure was built, the type of home it is, number of people in the individuals household, and the age of the individual. The population I am looking at is a sample of individuals in New Mexico who have reported non-negative Household Income.</p>
+<p>What the linear regression gives me is an adjusted R-Squared Value of .1216. This tells me that 12.2% of the variation in Household Income can be explained by differences in the independent variable. Not all of these relationships are statistically significant, but most of them are, including age, house-type (trailer, apartment, single-family), Number of people in household and Hispanic ethnicity.</p>
 <p><strong>How does the type of home impact household income?</strong> <br></p>
 <p>Using detached single-family homes as a base case we see that: <br></p>
-<p>If someone was living in an apartment, they would on average have a household income that was $48,370 less. This relationship is statistically significant with a p-value of 2e-16. <br></p>
-<p>If someone was living in a trailer/mobile home, their household income on average would be $37,357 less with a statistically significant p-value of 2e-16. <br></p>
-<p>If someone was living in a duplex, their household income on average would be $49,302 less with a statistically significant p-value of 2e-16. <br></p>
-<p>If someone was living in an attached single family home, their household income on average would be $11,213 less with a statistically significant p-value of 7e-4. <br></p>
+<p>If someone was living in an apartment, they would on average have a household income that was $39,750 less. This relationship is statistically significant with a p-value of 2e-16. <br></p>
+<p>If someone was living in a trailer/mobile home, their household income on average would be $37,419 less with a statistically significant p-value of 2e-16. <br></p>
+<p>If someone was living in a duplex, their household income on average would be $38,818 less with a statistically significant p-value of 4.6e-11. <br></p>
+<p>If someone was living in an attached single family home, their household income on average would be $8,283 less with a statistically significant p-value of .0112. <br></p>
 <p><strong>How does when the structure/home was built impact household income?</strong> <br></p>
 <p>Using structures built before 1940 as the base case we see that: <br></p>
 <p>There is not a statistically significant relationship between pre-1940s buildings and buildings built in the 40s/50s or 60s/70s, however, there are statistically significant relationship between pre-1940s buildings and buildings built since the 1980s.</p>
-<p>For someone who lives in a structure built in the 80s/90s, on average we see that their household income is $13653 higher than someone living in a house/building that was constructed before 1940. This relationship is significant with a p-value of 1.64e-05.</p>
-<p>For someone who lives in a structure built in the last twenty years, on average we see that their household income is $26118 higher than someone living in a house/building that was constructed before 1940. This relationship is significant with a p-value of 1.54e-15.</p>
+<p>For someone who lives in a structure built in the 80s/90s, on average we see that their household income is $12,666 higher than someone living in a house/building that was constructed before 1940. This relationship is significant with a p-value of 5.2e-05.</p>
+<p>For someone who lives in a structure built in the last twenty years, on average we see that their household income is $24,381 higher than someone living in a house/building that was constructed before 1940. This relationship is significant with a p-value of 4.8e-14.</p>
 <p><strong>How does race &amp; ethnicity impact household income?</strong> <br></p>
 <p>For race &amp; ethnicity, I think it is important to evaluate who to use as the base-case. For this analysis I chose to use non-Hispanic whites as the base since they are the largest share of the respondents. <br></p>
-<p>In this model we are not able to show a relationship between Non Hispanic whites 1. &quot;Non-Hispanic MultiRacial/Other Race, 2. Asian and 3. Other. It’s relevant to note that these three categories are among the four categories with the smallest number of respondents. It is impossible to say that there is no relationship, only that our data cannot show one. Also interesting to note is that Non-Hispanic Black residents, who with 212 respondents had fewer respondents than both Non-Hispanic Multiracial (272 responses) and Asian (232 responses) do show a statistically significant relationship. This is likely indication that this relationship is strong and is one that should be considered in any evaluation of impacts of discrimiation and systemic racism in the state. Using non-Hispanic whites as the base case we see that: <br></p>
-<p>If an individual is Black and Not-Hispanic, according to this model, on average we would expect their household income to be $25,431 less. This relationship is significant with a p-value of 4.30e-06.</p>
-<p>If an individual is Native American and Not-Hispanic, according to this model, on average we would expect their household income to be $44,182 less. This relationship is significant with a p-value of 2e-16.</p>
-<p>If an individual is White and Hispanic, according to this model, on average we would expect their household income to be $26,523 less. This relationship is significant with a p-value of 2e-16.</p>
-<p>If an individual is non-white and Hispanic, according to this model, on average we would expect their household income to be $44,182 less. This relationship is significant with a p-value of 2e-16.</p>
+<p>In this model we are not able to show a relationship between Non Hispanic whites 1. &quot;Non-Hispanic MultiRacial/Other Race, 2. Asian and 3. Other. It’s relevant to note that these three categories are among the four categories with the smallest number of respondents. It is impossible to say that there is no relationship, only that our data cannot show one. Also interesting to note is that Non-Hispanic Black residents, who with 212 respondents had fewer respondents than both Non-Hispanic Multiracial (272 responses) and Asian (232 responses) do show a statistically significant relationship. This is likely indication that this relationship is strong and is one that should be considered in any evaluation of impacts of discrimination and systemic racism in the state.</p>
+<p>Using non-Hispanic whites as the base case we see that: <br></p>
+<p>If an individual is Black and Not-Hispanic, according to this model, on average we would expect their household income to be $24,303 less. This relationship is significant with a p-value of 4.01e-06.</p>
+<p>If an individual is Native American and Not-Hispanic, according to this model, on average we would expect their household income to be $50,513 less. This relationship is significant with a p-value of 2e-16.</p>
+<p>If an individual is White and Hispanic, according to this model, on average we would expect their household income to be $28,957 less. This relationship is significant with a p-value of 2e-16.</p>
+<p>If an individual is non-white and Hispanic, according to this model, on average we would expect their household income to be $26,847less. This relationship is significant with a p-value of 2e-16.</p>
+<p>These numbers are pretty staggering, but line up with what I understand about poverty in some of the more rural areas of the state, especially on the Navajo Nation Reservation in the northern part of the state. For the next assignment, I think I will want to look at bernallilo county specifically to see if these disparities are as pronounced within abq and surrounding towns as they are across the whole state.</p>
 <p><strong>How does age impact household income?</strong> <br></p>
-<p>In our model we see that Age has an inverse relationship with household income. One additional year older corresponds with a $109.12 decrease in household income. This could possibly be explained by New Mexico’s challenges with high rates of poverty among elderly populations.</p>
+<p>In our model we see that Age has an positive relationship with household income. One additional year older corresponds with, on average, a $185.54 increase in household income, it is statistically significant with a p-value of 1.5e-09. One thing that is interesting is that before I added Number of People in household to this regression, the relationship was inverse, for every increase in age there was a ~$100 reduction in income. At the time I thought that this could possibly be explained by New Mexico’s challenges with high rates of poverty among elderly populations. Now, I am a little puzzled thinking about why adding the additional variable would have flipped this relationship.</p>
+<p><strong>How does number of people living in the household impact household income?</strong> <br></p>
+<p>In our model we see a positive correlation with number of people in household and household income. For every additional person we see on average an $8,382 increase in household income. This is a statistically significant relationship with its p-value of 2e-16.</p>
 </div>
 </div>
 <div id="r-cheat-sheet-references-troubleshooting" class="section level2">

@@ -345,7 +345,7 @@ summary(model)
 **Question for Grader, I was interested in doing this type of regression, but didn't have a good sense of how I could do it. I feel I have a moderate understanding of what log-odds (the outputs) would be, but not how the code would look. Online I was able to deduce that I probably wanted glm() with family = binomial, but Im running into the following error. 
 
 ```{r}
-fit <- glm(bld_type ~ when_built + race_ethn + HINCP, family =binomial, data =assignment5_vars)
+fit <- glm(bld_type ~ as.factor(assignment5_vars$when_built) + as.factor(assignment5_vars$race_ethn) + HINCP, family =binomial, data =assignment5_vars)
 summary(glm.fit)
 ```
 

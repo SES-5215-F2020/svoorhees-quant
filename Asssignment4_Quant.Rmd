@@ -270,7 +270,7 @@ r_e_2 <- tab1(assignment4_vars$race_ethn, sort.group ="decreasing", cum.percent 
 
 ## **Model** 
 
-Below is a model for Household Income (dependent variable) that takes into consideration When the Structure/Home was built, Race&Ethnicity of the respondent, building type, and age of respondent. 
+Below is a model for Household Income (dependent variable) that takes into consideration When the Structure/Home was built, Race&Ethnicity of the respondent, building type, number of individuals in the household, and age of respondent. 
 
 
 The base cases are set to:
@@ -282,27 +282,27 @@ The base cases are set to:
 
 ##### MODEL 1: Baseline
 ```{r}
-model <- lm(HINCP ~ when_built + race_ethn + bld_type + AGEP, data =assignment4_vars)
+model <- lm(HINCP ~ when_built + race_ethn + bld_type + AGEP + NP, data =assignment4_vars)
 summary(model)
 ```
 
 
 ###  **Analysis:** 
-In this model, I am looking at how Household Income varies with race/ethnicity, the decade a structure was built, the type of home it is and the age of the individual. The population I am looking at is a sample of individuals in New Mexico who have reported non-negative Household Income.
+In this model, I am looking at how Household Income varies with race/ethnicity, the decade a structure was built, the type of home it is, number of people in the individuals household, and the age of the individual. The population I am looking at is a sample of individuals in New Mexico who have reported non-negative Household Income.
 
-What the linear regression gives me is an adjusted R-Squared Value of 0.099. This tells me that 9.9% of the variation in Household Income can be explained  by differences in the independent variable. Not all of these relationships are statistically significant, but most of them are, including age, house-type (trailer, apartment, single-family) and Hispanic ethnicity.
+What the linear regression gives me is an adjusted R-Squared Value of .1216. This tells me that 12.2% of the variation in Household Income can be explained  by differences in the independent variable. Not all of these relationships are statistically significant, but most of them are, including age, house-type (trailer, apartment, single-family), Number of people in household and Hispanic ethnicity.
 
 **How does the type of home impact household income?** <br>
 
 Using detached single-family homes as a base case we see that: <br>
 
-If someone was living in an apartment, they would on average have a household income that was $48,370 less. This relationship is statistically significant with a p-value of  2e-16. <br>
+If someone was living in an apartment, they would on average have a household income that was $39,750 less. This relationship is statistically significant with a p-value of  2e-16. <br>
 
-If someone was living in a trailer/mobile home, their household income on average would be $37,357 less with a statistically significant p-value of 2e-16. <br>
+If someone was living in a trailer/mobile home, their household income on average would be $37,419 less with a statistically significant p-value of 2e-16. <br>
 
-If someone was living in a duplex, their household income on average would be $49,302 less with a statistically significant p-value of 2e-16. <br>
+If someone was living in a duplex, their household income on average would be $38,818 less with a statistically significant p-value of 4.6e-11. <br>
 
-If someone was living in an attached single family home, their household income on average would be $11,213 less with a statistically significant p-value of 7e-4. <br>
+If someone was living in an attached single family home, their household income on average would be $8,283 less with a statistically significant p-value of .0112. <br>
 
 
 **How does when the structure/home was built impact household income?** <br>
@@ -311,31 +311,39 @@ Using structures built before 1940 as the base case we see that: <br>
 
 There is not a statistically significant relationship between pre-1940s buildings and buildings built in the 40s/50s or 60s/70s, however, there are statistically significant relationship between pre-1940s buildings and buildings built since the 1980s. 
 
-For someone who lives in a structure built in the 80s/90s, on average we see that their household income is  $13653 higher than someone living in a house/building that was constructed before 1940. This relationship is significant with a p-value of 1.64e-05. 
+For someone who lives in a structure built in the 80s/90s, on average we see that their household income is  $12,666 higher than someone living in a house/building that was constructed before 1940. This relationship is significant with a p-value of 5.2e-05. 
 
-For someone who lives in a structure built in the last twenty years, on average we see that their household income is  $26118 higher than someone living in a house/building that was constructed before 1940. This relationship is significant with a p-value of 1.54e-15. 
+For someone who lives in a structure built in the last twenty years, on average we see that their household income is  $24,381 higher than someone living in a house/building that was constructed before 1940. This relationship is significant with a p-value of 4.8e-14. 
 
 
 **How does race & ethnicity impact household income?** <br>
 
+
 For race & ethnicity, I think it is important to evaluate who to use as the base-case. For this analysis I chose to use non-Hispanic whites as the base since they are the largest share of the respondents. <br>
 
-In this model we are not able to show a relationship between Non Hispanic whites 1. "Non-Hispanic MultiRacial/Other Race, 2. Asian and 3. Other. It's relevant to note that these three categories are among the four categories with the smallest number of respondents. It is impossible to say that there is no relationship, only that our data cannot show one. Also interesting to note is that Non-Hispanic Black residents, who with 212 respondents had fewer respondents than both Non-Hispanic Multiracial (272 responses) and Asian (232 responses) do show a statistically significant relationship. This is likely indication that this relationship is strong and is one that should be considered in any evaluation of impacts of discrimiation and systemic racism in the state. 
+In this model we are not able to show a relationship between Non Hispanic whites 1. "Non-Hispanic MultiRacial/Other Race, 2. Asian and 3. Other. It's relevant to note that these three categories are among the four categories with the smallest number of respondents. It is impossible to say that there is no relationship, only that our data cannot show one. Also interesting to note is that Non-Hispanic Black residents, who with 212 respondents had fewer respondents than both Non-Hispanic Multiracial (272 responses) and Asian (232 responses) do show a statistically significant relationship. This is likely indication that this relationship is strong and is one that should be considered in any evaluation of impacts of discrimination and systemic racism in the state. 
 
 
 Using non-Hispanic whites as the base case we see that: <br>
 
-If an individual is Black and Not-Hispanic, according to this model, on average we would expect their household income to be $25,431 less. This relationship is significant with a p-value of 4.30e-06.
+If an individual is Black and Not-Hispanic, according to this model, on average we would expect their household income to be $24,303 less. This relationship is significant with a p-value of 4.01e-06.
 
-If an individual is Native American and Not-Hispanic, according to this model, on average we would expect their household income to be $44,182 less. This relationship is significant with a p-value of 2e-16.
+If an individual is Native American and Not-Hispanic, according to this model, on average we would expect their household income to be $50,513 less. This relationship is significant with a p-value of 2e-16.
 
-If an individual is White and Hispanic, according to this model, on average we would expect their household income to be $26,523 less. This relationship is significant with a p-value of 2e-16.
+If an individual is White and Hispanic, according to this model, on average we would expect their household income to be $28,957 less. This relationship is significant with a p-value of 2e-16.
 
-If an individual is non-white and Hispanic, according to this model, on average we would expect their household income to be $44,182 less. This relationship is significant with a p-value of 2e-16.
+If an individual is non-white and Hispanic, according to this model, on average we would expect their household income to be $26,847less. This relationship is significant with a p-value of 2e-16.
+
+These numbers are pretty staggering, but line up with what I understand about poverty in some of the more rural areas of the state, especially on the Navajo Nation Reservation in the northern part of the state. For the next assignment, I think I will want to look at bernallilo county specifically to see if these disparities are as pronounced within abq and surrounding towns as they are across the whole state.
 
 **How does age impact household income?** <br>
 
-In our model we see that Age has an inverse relationship with household income. One additional year older corresponds with a $109.12 decrease in household income. This could possibly be explained by New Mexico's challenges with high rates of poverty among elderly populations. 
+In our model we see that Age has an positive relationship with household income. One additional year older corresponds with, on average, a $185.54 increase in household income, it is statistically significant with a p-value of 1.5e-09. One thing that is interesting is that before I added Number of People in household to this regression, the relationship was inverse, for every increase in age there was a ~$100 reduction in income. At the time I thought that this could possibly be explained by New Mexico's challenges with high rates of poverty among elderly populations. Now, I am a little puzzled thinking about why adding the additional variable would have flipped this relationship.  
+
+**How does number of people living in the household impact household income?** <br>
+
+In our model we see a positive correlation with number of people in household and household income. For every additional person we see on average an $8,382 increase in household income. This is a statistically significant relationship with its p-value of 2e-16. 
+
 
 
 ## **R Cheat Sheet, References & Troubleshooting**
