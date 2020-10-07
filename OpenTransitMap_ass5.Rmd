@@ -22,6 +22,8 @@ library(ggmap)
 ```{r}
 CPL_libraries <- st_read(
   "https://data.cambridgema.gov/api/geospatial/kn2z-b6eg?method=export&format=KML")
+
+Cambridge_public_schools <- st_read("https://data.cambridgema.gov/api/geospatial/jhbq-dj88?method=export&format=KML")
 ```
 
 
@@ -67,7 +69,28 @@ otp_build_graph(otp = path_otp, dir = path_data, memory = 1024)
 otp_setup(otp = path_otp, dir = path_data, memory =1024)
 otpcon <- otp_connect()
 ```
-## Create ISOCHROMES
+
+## CREATE SCHOOL ISOCHRONES
+```{r}
+iso_5min_walk <- 
+  otp_isochrone(otpcon = otpcon, fromPlace = Cambridge_public_schools,  mode = "WALK", cutoffSec = 300) %>%
+
+iso_5min_drive <- 
+  otp_isochrone(otpcon = otpcon, fromPlace = Cambridge_public_schools, 
+                mode = "CAR", cutoffSec = 300) %>%
+  st_transform(crs = MA_state_plane) %>%
+  mutate(mode = "drive")
+
+iso_all_modes <- rbind(iso_5min_drive, iso_5min_walk)
+
+
+```
+
+
+
+
+
+## Create ISOCHROMES LIBRARIES
 ```{r}
 iso_5min_walk <- 
   otp_isochrone(otpcon = otpcon, fromPlace = CPL_libraries, 
@@ -204,21 +227,7 @@ otp_stop()
 ```
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+## Attempt to use Open Street Map to Gather Groccery Data
 ```{r}
 head(available_features())
 
