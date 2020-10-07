@@ -5,6 +5,7 @@ date: "10/2/2020"
 output: html_document
 ---
 
+### Libraries
 ```{r setup, include=FALSE}
 library(osmdata)
 library(opentripplanner)
@@ -13,9 +14,11 @@ library(sf)
 library(ggthemes)
 library(ggspatial)
 library(tidygeocoder)
+library(ggmap)
 ```
 
 
+### KML Files
 ```{r}
 CPL_libraries <- st_read(
   "https://data.cambridgema.gov/api/geospatial/kn2z-b6eg?method=export&format=KML")
@@ -28,7 +31,7 @@ opq(bbox = 'Cambridge MA USA') %>%
   osmdata_xml(file = 'OTP/graphs/default/cambridge_streets.osm')
 
 
-
+### Cambridge Streets
 ```{r}
 MA_state_plane <- "+proj=lcc +lat_1=41.71666666666667 +lat_2=42.68333333333333 +lat_0=41 +lon_0=-71.5 +x_0=200000 +y_0=750000 +ellps=GRS80 +units=m +no_defs"
 
@@ -52,7 +55,7 @@ ggplot(cambridge_streets) +
 ```
 
 
-
+### Conntect to Open Trip Planner
 **Ran Once**
 path_otp <- otp_dl_jar("OTP")
 
@@ -80,7 +83,7 @@ iso_5min_drive <-
 
 iso_all_modes <- rbind(iso_5min_drive, iso_5min_walk)
 
-otp_stop()
+
 ```
 ```{r}
 right_side <- st_bbox(iso_all_modes)$xmax
@@ -126,7 +129,14 @@ ggplot(iso_all_modes) +
 ```
 
 
-#BOSTON STREETS 
+#CREATE BOSTON STREETS OSM File
+
+
+RAN ONCE: 
+opq(bbox = 'Cambridge MA USA') %>%
+  add_osm_feature(key = 'highway') %>%
+  osmdata_xml(file = 'OTP/graphs/default/boston_streets.osm')
+
 ```{r}
 boston_street_features <- opq(bbox = 'Boston MA USA') %>%
   add_osm_feature(key = 'highway') %>%
@@ -134,6 +144,8 @@ boston_street_features <- opq(bbox = 'Boston MA USA') %>%
 
 boston_streets <- boston_street_features$osm_lines %>%
   st_transform(crs = MA_state_plane)
+
+
 ```
 
 
@@ -143,20 +155,41 @@ ggplot(boston_streets) +
   theme_map()
 ```
 
-#GROCCERY STORE
-```{r}
 
-point_A <- geo(address = "926 Cummins Hwy, Mattapan, MA")
+## ISOCHRONES FOR PUBLIC SCHOOLS
+```{r}
+public_schools <-st_read("http://bostonopendata-boston.opendata.arcgis.com/datasets/1d9509a8b2fd485d9ad471ba2fdb1f90_0.kml?outSR=%7B%22latestWkid%22%3A2249%2C%22wkid%22%3A102686%7D")
+```
+
+
+```{r}
+iso_5min_walk <- 
+  otp_isochrone(otpcon = otpcon, fromPlace = public_schools, 
+                mode = "WALK", cutoffSec = 300) %>%
+  st_transform(crs = MA_state_plane) %>%
+  mutate(mode = "walk")
+```
+
+
+
+# ISOCHRONES FOR GROCCERY STORES
+
+#ADdress of Groccery STore
+```{r}
+point_A <- geo(address = "761 Morton St, Mattapan, MA")
 print(point_A)
 
+```
+```{r}
+point_A_10min_walk <- otp_isochrone(otpcon = otpcon, fromPlace = c(-71.08928, 42.28352),
+mode = "WALK", cutoffSec = 600)
 ```
 
 
 ```{r}
 #Create Isochrone around Point A
-point_A_10min_walk <-  otp_isochrone(otpcon = otpcon, fromPlace = c(point_A$long, point_A$lat), 
+point_A_10min_walk <-  otp_isochrone(otpcon = otpcon, fromPlace = c(-71.09512, 42.26820), 
                 mode = "WALK", cutoffSec = 600) 
-
 ```
 
 ```{r}
@@ -165,11 +198,33 @@ ggplot(point_A_10min_walk) +
   annotation_map_tile(zoomin = 1, progress = "none") +
   geom_sf(fill ="blue", alpha=0.2) +
   theme_map() 
+
+
+otp_stop()
 ```
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+head(available_features())
+
+GROCERY <- getbb("Boston") %>%
+  opq() %>%
+    add_osm_feature("supermarket")
+```
 
 
