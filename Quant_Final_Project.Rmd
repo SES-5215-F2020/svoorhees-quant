@@ -1,0 +1,1967 @@
+---
+title: 'Quant: Final Assignment'
+author: "Sage Voorhees"
+date: "10/14/2020"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '4'
+  html_document:
+    code_folding: hide
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+    theme: cosmo
+---
+
+
+
+```{r, message = FALSE, results='hide'}
+# Run Libararies 
+library(tidycensus)
+library(tidyverse)
+library(ggplot2)
+library(ggthemes)
+library(sf)
+library(ggspatial)
+library(units)
+library(nngeo)
+library(gridExtra)
+library(jtools)
+library(interactions)
+library(formattable)
+library(cowplot)
+library(gghighlight)
+library(osmdata)
+library(opentripplanner)
+library(tidyverse)
+library(sf)
+library(ggthemes)
+library(ggspatial)
+library(tidygeocoder)
+library(ggmap)
+library(rgeos)
+library(qwraps2)
+library(latexpdf)
+library(tinytex)
+
+```
+
+# **Understanding Rent Burden In Albuquerque**
+
+## **Introduction**
+When we think about Rent Burden in the United States, a quick scan through newspaper headlines and conference keynotes will show you that Rent Burden is most frequently framed in the context of coastal cities: Los Angeles, New York City, San Francisco, Boston. Often, rightfully so, rent is eye-catching in these areas—but as folks interested in the well-being of Burqueños—we must acknowledge that rent burden is something that affects our city too. According to a 2019 report by the National Low Income Housing Coalition, there is “not a single county in the united states where a worker earning the federal or prevailing minimum wage could afford a modest two-bedroom rental home by working a standard 40-hr workweek.”  Albuquerque is no exception. According to the report, for an individual making 7.25$ an hour (federal minimum wage) they would need to work 127 hours per week in order to afford an average two-bedroom without being rent-burdened (spending more than 30% of their income on rent). While thanks to a recent raise in minimum wage, Albuquerque’s minimum wage is now 9.25$/hr, the average one-bedroom apartment is $750 in 2020 according to Zumper, an 8% increase from last year. This means that someone would need to work 68+ hours/week to afford an average one-bedroom apartment in Albuquerque.  Furthermore, a recent report between Mayor Keller’s office and the Urban Institute show that while rental units increases from 2006-2012 by about 8,400, the number of rental units affordable to renter households with extremely low incomes decreased by 700 (from 7,600 to 6,900). <br>
+
+
+This analysis begins to take a look at Rent Burden in Albuquerque. The analysis hopes to shed light on who is rent-burdened in the city, where they live and what they have in common. This analysis also hopes to put itself in conversation with potential policies that could address rent burden, like the recently adopted changes in the city’s zoning code to expand where casitas (accessory dwelling units) may be constructed. <br> 
+
+The hypothesis that led this report is that there are factors (such as race & ethnicity, neighborhood, and education level) that correlate with who is rent burdened in the city. A further narrowing down of this hypothesis is that these correlations will vary within different areas of the city (ie that variables like education will have a bigger affect on rent burden in areas like Kirtland AFB than it does on areas like the South Valley) 
+
+
+```{r}
+opq(bbox = 'Albuquerque, NM USA') %>%
+  add_osm_feature(key = 'highway') %>%
+  osmdata_xml(file = 'OTP/graphs/default/abq_streets.osm')
+```
+
+```{r}
+abq_street_features <- opq(bbox = 'Albuquerque,NM USA') %>%
+  add_osm_feature(key = 'highway') %>%
+  osmdata_sf()
+abq_streets <- abq_street_features$osm_lines 
+```
+
+```{r}
+ggplot(abq_streets) +
+  geom_sf() +
+  theme_map()
+```
+
+
+
+```{r, message = FALSE, results='hide'}
+### **Load & Adjust Variables** 
+
+#Load Data Frame from CSV
+assignment6_vars <- read_csv("New_Mexico_Vars_Development")
+  
+assignment6_vars <-assignment6_vars %>%
+  
+ #Filter for Only Bernalillo COunty 
+  filter(PUMA == 00801|
+         PUMA == 00802|
+         PUMA == 00803|
+         PUMA == 00804| 
+         PUMA == 00805|
+         PUMA == 00806) %>%
+  
+  
+#Mutate PUMA LABEL
+   mutate(PUMA_label = case_when(PUMA == 00801 ~ " 1 Northeast Heights",
+                                   PUMA == 00802 ~ "Southeast Heights",
+                                   PUMA == 00803 ~ "Kirtland AFB/Gibson",
+                                   PUMA == 00804 ~ "Downtown, Nob Hill, N.Valley",
+                                   PUMA == 00805 ~ "Rio Rancho",
+                                   PUMA == 00806 ~ "South Valley")) %>%
+  
+   
+#Mutate Building Type
+  mutate(bld_type =case_when(
+                        BLD_label == "One-family house detached" ~ "1 Family Home",
+                        BLD_label == "One-family house attached" ~ "1 Family Home",
+                        BLD_label == "2 Apartments" ~ "Apartment",
+                        BLD_label == "Mobile home or trailer" ~ "Mobile Home/Trailer/5th Wheel",
+                        BLD_label == "3-4 Apartments" ~ "Apartment",
+                        BLD_label == "5-9 Apartments" ~ "Apartment",
+                        BLD_label == "10-19 Apartments" ~ "Apartment",
+                        BLD_label == "20-49 Apartments" ~ "Apartment",
+                        BLD_label == "50 or more apartments" ~ "Apartment", 
+                        BLD_label == "Boat, RV, van, etc." ~"Mobile Home/Trailer/5th Wheel",
+                        TRUE ~ "Other" )) %>%
+  
+#Mutate YBL to Decade House Was Built
+  mutate(when_built = case_when(
+                        YBL_label == "1939 or earlier" ~ "1 pre 1940", 
+                        YBL_label == "1940 to 1949" ~ "1.2 40s/50s",
+                        YBL_label == "1950 to 1959" ~ "1.2 40s/50s",
+                        YBL_label == "1960 to 1969" ~ "1.3 60s/70s",
+                        YBL_label == "1970 to 1979" ~ "1.3 60s/70s",
+                        YBL_label == "1980 to 1989" ~ "1.4 80s/90s",
+                        YBL_label == "1990 to 1999" ~ "1.4 80s/90s",
+                        YBL_label == "2000 to 2004" ~ "2000s/10s",
+                        YBL_label == "2005"~ "2000s/10s" ,
+                        YBL_label == "2006"~ "2000s/10s" ,
+                        YBL_label == "2007"~ "2000s/10s" ,
+                        YBL_label == "2008"~ "2000s/10s",
+                        YBL_label == "2009" ~ "2000s/10s",
+                               YBL_label == "2010" ~ "2000s/10s",
+                               YBL_label == "2011" ~ "2000s/10s",
+                               YBL_label == "2012" ~ "2000s/10s",
+                               YBL_label == "2013" ~ "2000s/10s",
+                               YBL_label == "2014" ~ "2000s/10s",
+                               YBL_label == "2015" ~ "2000s/10s",
+                               YBL_label == "2016" ~ "2000s/10s",
+                               YBL_label == "2017" ~ "2000s/10s",
+                               YBL_label == "2018" ~ "2000s/10s",
+                        TRUE ~"Other")) %>%
+    
+    mutate(when_built_simp = case_when(
+                        when_built == "2000s/10s" ~ "Last Twenty", 
+                        when_built != "2000s/10s" ~ "Older",
+                        TRUE ~"Data not available")) %>%
+   
+#Journey to Work as a Categorical Variable
+mutate(JWMNP_binned = case_when(
+          JWMNP <15 ~ "0 - 15 minutes",
+          JWMNP <30 & JWMNP >15 | JWMNP == 15 ~ "15 - 30 minutes",
+          JWMNP >30 & JWMNP <45 | JWMNP == 45 ~ "30 - 45 minutes", 
+          JWMNP >45 & JWMNP <60 | JWMNP == 60 ~ "45 - 60 minutes",
+          JWMNP >60 & JWMNP <75 | JWMNP == 75 ~ "60 - 75 minutes",
+          TRUE ~ "No Commute Reported")) %>%
+   
+#Household Size Simplified
+mutate(NP_simp = case_when(
+          NP == 1 ~ "1 person",
+          NP == 2 ~ "2 people", 
+          NP > 3 | NP == 3 ~ "3+ people",
+          TRUE ~ "Data Not Reported")) %>%
+  
+  #Household Size: Binary
+mutate(NP_binary = case_when(
+          NP == 1 ~ "1 person",
+          NP > 2 | NP == 2 ~ "2+ people",
+          TRUE ~ "Data Not Reported")) %>%
+   
+# Rent Burden Simplified 
+   mutate(GRPIP_simp = case_when(
+          GRPIP <30 ~ "Not Rent Burdened",
+          GRPIP >30 & GRPIP <50 | GRPIP == 30 ~ "Rent Burdened",
+          GRPIP >50 | GRPIP == 45 ~ "Severely Rent Burdened", 
+          TRUE ~ "Data Not Reported")) %>%
+  
+     
+  
+#Recode Race & Ethnicity Together
+  mutate(race_ethn = case_when(
+    
+    #WHITE
+   RAC1P == "1" & HISP == "01" ~ "1 White (NH)",
+   RAC1P == "1" & HISP != "01" ~ "Hispanic (White))",
+   
+   #NATIVE AMERICAN (inc Alaska Native)
+   
+   RAC1P == "3" & HISP == "01" ~ "Native American",
+   RAC1P == "3" & HISP != "01" ~"Native American",
+   
+   RAC1P == "7" & HISP == "01" ~ "Native American",
+   RAC1P == "7" & HISP != "01"~ "Native American",
+   
+   RAC1P == "9" & HISP == "01" ~ "Native American",
+   RAC1P == "9" & HISP != "01" ~"Native American",
+   
+   #AFRICAN AMERICAN / BLACK
+    RAC1P == "4" & HISP == "01" ~ "Black/AA",
+    RAC1P == "4" & HISP != "01" ~ "Black/AA",
+   
+   #ASIAN
+   RAC1P =="6" & HISP == "01" ~ "Asian",
+   RAC1P =="6" & HISP != "01" ~ "Asian",
+   
+   #SOME OTHER RACE ALONE & MULTIRACIAL
+   
+   RAC1P == "2" & HISP == "01" ~ "Other Race or Multiracial (NH)",
+   RAC1P == "2" & HISP != "01"~ "Hispanic (Non-White)",
+   
+   RAC1P == "5" & HISP == "01" ~ "Other Race or Multiracial (NH)",
+   RAC1P == "5" & HISP != "01"~ "Hispanic (Non-White)",
+   
+   #Native Hawaiian, Pacific Islander --> Coded as Other Race
+   RAC1P == "8" & HISP == "01" ~ "Other Race or Multiracial (NH)",
+   RAC1P == "8" & HISP != "01" ~ "Hispanic (Non-White)", 
+   
+   # Other
+   TRUE ~ "Other"))%>%
+  
+mutate(income_per_person = HINCP/NP) %>%
+   # Simplify Education (Thank you Emma Colley for inspiring this breakdown)
+   mutate(SCHL_simp = case_when(
+    SCHL_label=="1 or more years of college credit, no degree"~"1 HS Diploma",
+    SCHL_label=="12th grade - no diploma"~"Some HS, No Diploma",
+    SCHL_label=="Associate's degree"~"Assoc. Degree",
+    SCHL_label=="Bachelor's degree"~"Bach Degree or Higher",
+    SCHL_label=="Doctorate degree"~"Bach Degree or Higher",
+    SCHL_label=="GED or alternative credential"~"1 HS Diploma",
+    SCHL_label=="Grade 10"~"Some HS, No Diploma",
+    SCHL_label=="Grade 11"~"Some HS, No Diploma",
+    SCHL_label=="Grade 1"~"No HS",
+    SCHL_label=="Grade 2"~"No HS",
+    SCHL_label=="Grade 3"~"No HS",
+    SCHL_label=="Grade 4"~"No HS",
+    SCHL_label=="Grade 5"~"No HS",
+    SCHL_label=="Grade 6"~"No HS",
+    SCHL_label=="Grade 7"~"No HS",
+    SCHL_label=="Grade 8"~"No HS",
+    SCHL_label=="Grade 9"~"Some HS, No Diploma",
+    SCHL_label=="Kindergarten"~"No HS",
+    SCHL_label=="Master's degree"~"Bach Degree or Higher",
+    SCHL_label=="No schooling completed"~"No HS",
+    SCHL_label=="Nursery school, preschool"~"No HS",
+    SCHL_label=="Professional degree beyond a bachelor's degree"~"Bach Degree or Higher",
+    SCHL_label=="Regular high school diploma"~"1 HS Diploma",
+    SCHL_label=="Some college, but less than 1 year"~"1 HS Diploma")) %>%
+  
+  
+
+dplyr::select(HINCP, race_ethn, RAC1P_label, HISP_label, JWMNP_binned, NP,  NP_simp, NP_binary, PUMA_label, when_built, when_built_simp, AGEP, bld_type, BLD_label, PINCP, BLD_label, GRPIP, GRPIP_simp, RNTP, income_per_person, SCHL_simp, RNTP)
+```
+
+
+
+
+```{r, message = FALSE, results='hide'}
+### **Create Neighborhood Specific Vars**
+# ABQ RENTERS
+ass6_ABQs_renters <- assignment6_vars %>%
+  filter(RNTP != 0)
+
+
+# 801: NORTHEAST HEIGHTS
+## ALL
+ass6_NEHeights <- assignment6_vars %>%
+  filter(PUMA_label == " 1 Northeast Heights") 
+
+## JUST RENTERS
+ass6_NEHeights_renters <- assignment6_vars %>%
+  filter(PUMA_label == " 1 Northeast Heights") %>%
+  filter(RNTP != 0)
+
+
+# 802: SOUTHEAST HEIGHTS
+## ALL
+ass6_SEHeights <- assignment6_vars %>%
+  filter(PUMA_label == "Southeast Heights") 
+
+## JUST RENTERS
+ass6_SEHeights_renters <- assignment6_vars %>%
+  filter(PUMA_label == "Southeast Heights") %>%
+  filter(RNTP != 0)
+
+
+# 803: KAFB/GIBSON
+## ALL
+ass6_KAFB <- assignment6_vars %>%
+  filter(PUMA_label == "Kirtland AFB/Gibson") 
+
+## JUST RENTERS
+ass6_KAFB_renters <- assignment6_vars %>%
+  filter(PUMA_label == "Kirtland AFB/Gibson") %>%
+  filter(RNTP != 0)
+
+
+# 804: KAFB/GIBSON
+## ALL
+ass6_DT_NH_NV <- assignment6_vars %>%
+  filter(PUMA_label == "Downtown, Nob Hill, N.Valley") 
+
+## JUST RENTERS
+ass6_DT_NH_NV_renters <- assignment6_vars %>%
+  filter(PUMA_label == "Downtown, Nob Hill, N.Valley") %>%
+  filter(RNTP != 0)
+
+
+# 805: RIO RANCHO
+## ALL
+ass6_RIO_R <- assignment6_vars %>%
+  filter(PUMA_label == "Rio Rancho") 
+
+## JUST RENTERS
+ass6_RIO_R_renters <- assignment6_vars %>%
+  filter(PUMA_label == "Rio Rancho") %>%
+  filter(RNTP != 0)
+
+
+## # 806: SOUTH VALLEY
+## ALL
+ass6_SVALLEY <- assignment6_vars %>%
+  filter(PUMA_label == "South Valley") 
+
+## JUST RENTERS
+ass6_SVALLEY_renters <- assignment6_vars %>%
+  filter(PUMA_label == "Rio Rancho") %>%
+  filter(RNTP != 0)
+```
+
+## **Data** 
+
+In this analysis, I am using American Community Survey Data from 2018 (ACS-2018). The data includes all information for the 6-PUMA areas that span Albuquerque. This analysis has chosen to define Rio Rancho as part of Albuquerque.  This dataset has a total of 16,054 observations. 
+
+Within the analysis, I use the following sub-categorization of the ACS-2018 data. 
+
+
+```{r}
+Dataframe_Breakdown <- data.frame(
+  'Sub-Category' = c("Albuquerque Total", "Albuquerque Renters", "Northeast Heights", "Northeast Heights Renters", "Southeast Heights", "Southeast Heights Renters", "Kirtland Airforce Base/Gibson",  "Kirtland Airforce Base/Gibson Renters", "Downtown/Nob Hill/North Valley","Downtown/Nob Hill/North Valley Renters", "Rio Rancho", "Rio Rancho Renters", "South Valley", "South Valley Renters"),
+  'Observations' = c(16054,1372,807,199,935,271,718, 294,783,256,952,202, 687,202))
+
+
+
+formattable(Dataframe_Breakdown)
+```
+
+In the analysis, I created & looked at the following 14 variables. Not all variables were used in final linear regression models, but all were used at some point as a way of exploring the data. 
+
+```{r}
+Variables <- data.frame(
+  'Variable' = c("Rent Burden", "Rent Burden: Categorized", "Commute to Work", "Household Size", "Rental Type", "Decade Rental Constructed", "Household Income", "Personal Income", "Household Income per Person", "Age of Renter", "Education",  "Rent", "Race & Ethnicity", "Neighborhood"),
+  'Variable Name' = c("GRPIP", "GRPIP_simp", "JWMNP_binned", "NP_simp", "bld_type", "when_built", "HINCP", "PINCP", "income_per_person", "AGEP", "SCHL_simp", "RNTP", "race_ethn", "PUMA_label"),
+  'Variable Type' = c("Continuous","Categorical","Categorical","Categorical","Categorical","Categorical","Categorical","Categorical","Categorical","Continuous","Continuous", "Continuous", "Categorical", "Categorical"),
+  'Alterations' = c("None", "Binned into 3 Categories", "Binned into 15 minute intervals", "Binned into 3 categories", "Aggregated into larger categories", "Aggregated into 20 year periods", "None", "None", "Divided Household Income by Household Size", "None", "Aggregated into larger categories", "None", "Combined RINCP & HISP", "Created names for PUMA areas"))
+
+
+
+formattable(Variables)
+```
+
+
+### **Albuquerque Demographics**
+#### Below are some visualizations of the variables and data used in this analysis. 
+
+#### **1. Rent Burden** 
+
+```{r}
+ggplot(ass6_ABQs_renters, aes(x=GRPIP, y=PUMA_label)) +
+  
+  geom_segment( y=200, 
+                yend=0,
+                x=30,
+                xend=30,
+                size =1,
+                alpha=.4,
+                color ="pink") +
+
+geom_segment( y=200, 
+                yend=0,
+                x=50,
+                xend=50,
+                alpha=.8,
+                size =1.2, 
+                color ="pink") +
+  
+  labs(title="Rent Burden: All ABQ Renters")  +
+  geom_point(position = "jitter", size =2, alpha =.2, color = "darkslategray") +
+  scale_y_discrete(name="Neighborhood") +
+  scale_x_continuous(name ="% of income going to Rent",
+                     breaks = seq(0,101, by = 10),
+                     labels = paste(seq(0,101, by = 10),
+                     "", sep = "")) +
+
+   theme_minimal()
+```
+```{r}
+rb_NEH <-  ggplot(ass6_NEHeights_renters, aes(x =GRPIP_simp)) +
+   labs(title="Northeast Heights Renters")  +
+  geom_bar(fill="olivedrab3", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+    scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+
+
+
+RB_SEH <-  ggplot(ass6_SEHeights_renters, aes(x =GRPIP_simp)) +
+   labs(title="Southeast Heights Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+RB_KAFB <-  ggplot(ass6_KAFB_renters, aes(x =GRPIP_simp)) +
+   labs(title="Kirtland AirForce Base/Gibson")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+
+RB_DT <-  ggplot(ass6_DT_NH_NV_renters, aes(x =GRPIP_simp)) +
+   labs(title="Downtown, Nob Hill, N.Valley")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+RB_RR <-  ggplot(ass6_RIO_R_renters, aes(x =GRPIP_simp)) +
+   labs(title="Rio Rancho Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+RB_SV <-  ggplot(ass6_DT_NH_NV_renters, aes(x =GRPIP_simp)) +
+   labs(title="South Valley Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+plot_grid(rb_NEH, RB_SEH, ncol=1, align="v")
+plot_grid(RB_KAFB, RB_DT, ncol=1, align="v")
+plot_grid(RB_RR, RB_SV, ncol=1, align="v")
+```
+
+
+-------------------------------------------------------------------------------------
+
+
+#### **2. Race & Ethnicity**
+
+
+```{r, message = FALSE, results='hide'}
+ggplot(ass6_ABQs_renters, aes(x=race_ethn, y=PUMA_label)) +
+  
+  
+  labs(title="Rent Burden: All ABQ Renters")  +
+  geom_point(position = "jitter", size =2, alpha =.2, color = "darkslategray") +
+  scale_y_discrete(name="Neighborhood") +
+  scale_x_discrete(name ="") +
+  theme(axis.text.x = element_text(angle = 30))
+   theme_minimal()
+```
+
+```{r, message = FALSE, results= 'hide'}
+
+RE_NEH <-  ggplot(ass6_NEHeights_renters, aes(x =race_ethn)) +
+   labs(title="Northeast Heights Renters")  +
+  geom_bar(fill="olivedrab3", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+    scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+
+RE_SEH <-  ggplot(ass6_SEHeights_renters, aes(x =race_ethn)) +
+   labs(title="Southeast Heights Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+
+
+RE_KAFB <-  ggplot(ass6_KAFB_renters, aes(x =race_ethn)) +
+   labs(title="Kirtland AirForce Base/Gibson")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+
+RE_DT <-  ggplot(ass6_DT_NH_NV_renters, aes(x =race_ethn)) +
+   labs(title="Downtown, Nob Hill, N.Valley")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+RE_RR <-  ggplot(ass6_RIO_R_renters, aes(x =race_ethn)) +
+   labs(title="Rio Rancho Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+RE_SV <-  ggplot(ass6_DT_NH_NV_renters, aes(x =race_ethn)) +
+   labs(title="South Valley Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 30)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+plot_grid(RE_NEH, RE_SEH, ncol=1, align="v")
+plot_grid(RE_KAFB, RE_DT, ncol=1, align="v")
+plot_grid(RE_RR, RE_SV, ncol=1, align="v")
+```
+
+
+---------------------------------------------------------------------------
+
+#### **3. Commute Time to Work** 
+```{r, message = FALSE, results='hide'}
+ggplot(ass6_ABQs_renters, aes(x=JWMNP_binned, y=PUMA_label)) +
+  
+  
+  labs(title="Rent Burden: All ABQ Renters")  +
+  geom_point(position = "jitter", size =2, alpha =.2, color = "darkslategray") +
+  scale_y_discrete(name="Neighborhood") +
+  scale_x_discrete(name ="") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 30, color="sienna", size =8)) 
+```
+
+```{r, message = FALSE, results= 'hide'}
+
+JW_NEH <-  ggplot(ass6_NEHeights_renters, aes(x =JWMNP_binned)) +
+   labs(title="Northeast Heights Renters")  +
+  geom_bar(fill="olivedrab3", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+    scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+
+JW_SEH <-  ggplot(ass6_SEHeights_renters, aes(x =JWMNP_binned)) +
+   labs(title="Southeast Heights Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+
+
+JW_KAFB <-  ggplot(ass6_KAFB_renters, aes(x =JWMNP_binned)) +
+   labs(title="Kirtland AirForce Base/Gibson")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+
+JW_DT <-  ggplot(ass6_DT_NH_NV_renters, aes(x =JWMNP_binned)) +
+   labs(title="Downtown, Nob Hill, N.Valley")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+JW_RR <-  ggplot(ass6_RIO_R_renters, aes(x =JWMNP_binned)) +
+   labs(title="Rio Rancho Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+JW_SV <-  ggplot(ass6_DT_NH_NV_renters, aes(x =JWMNP_binned)) +
+   labs(title="South Valley Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+plot_grid(JW_NEH, JW_SEH, ncol=1, align="v")
+plot_grid(JW_KAFB, JW_DT, ncol=1, align="v")
+plot_grid(JW_RR, JW_SV, ncol=1, align="v")
+```
+
+--------------------------------------------------------------------------------------------
+
+#### **4. # People in Household**  
+
+```{r, message = FALSE, results='hide'}
+ggplot(ass6_ABQs_renters, aes(x=NP_simp, y=PUMA_label)) +
+  
+  
+  labs(title="Rent Burden: All ABQ Renters")  +
+  geom_point(position = "jitter", size =2, alpha =.2, color = "darkslategray") +
+  scale_y_discrete(name="Neighborhood") +
+  scale_x_discrete(name ="") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 30, color="sienna", size =8)) 
+```
+
+```{r, message = FALSE, results= 'hide'}
+
+NP_NEH <-  ggplot(ass6_NEHeights_renters, aes(x =NP_simp)) +
+   labs(title="Northeast Heights Renters")  +
+  geom_bar(fill="olivedrab3", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+    scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+
+NP_SEH <-  ggplot(ass6_SEHeights_renters, aes(x =NP_simp)) +
+   labs(title="Southeast Heights Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+
+
+NP_KAFB <-  ggplot(ass6_KAFB_renters, aes(x =NP_simp)) +
+   labs(title="Kirtland AirForce Base/Gibson")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+
+NP_DT <-  ggplot(ass6_DT_NH_NV_renters, aes(x =NP_simp)) +
+   labs(title="Downtown, Nob Hill, N.Valley")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+NP_RR <-  ggplot(ass6_RIO_R_renters, aes(x =NP_simp)) +
+   labs(title="Rio Rancho Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+NP_SV <-  ggplot(ass6_DT_NH_NV_renters, aes(x =NP_simp)) +
+   labs(title="South Valley Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+plot_grid(NP_NEH, NP_SEH, ncol=1, align="v")
+plot_grid(NP_KAFB, NP_DT, ncol=1, align="v")
+plot_grid(NP_RR, NP_SV, ncol=1, align="v")
+```
+
+
+----------------------------------------------------------------------------------------------------------------
+
+
+#### **5. Rental Type** 
+
+```{r, message = FALSE, results='hide'}
+ggplot(ass6_ABQs_renters, aes(x=bld_type, y=PUMA_label)) +
+  
+  
+  labs(title="Rent Burden: All ABQ Renters")  +
+  geom_point(position = "jitter", size =2, alpha =.2, color = "darkslategray") +
+  scale_y_discrete(name="Neighborhood") +
+  scale_x_discrete(name ="") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 30, color="sienna", size =8)) 
+```
+
+```{r, message = FALSE, results= 'hide'}
+
+BT_NEH <-  ggplot(ass6_NEHeights_renters, aes(x =bld_type)) +
+   labs(title="Northeast Heights Renters")  +
+  geom_bar(fill="olivedrab3", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+    scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+
+BT_SEH <-  ggplot(ass6_SEHeights_renters, aes(x =bld_type)) +
+   labs(title="Southeast Heights Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+
+
+BT_KAFB <-  ggplot(ass6_KAFB_renters, aes(x =bld_type)) +
+   labs(title="Kirtland AirForce Base/Gibson")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+
+BT_DT <-  ggplot(ass6_DT_NH_NV_renters, aes(x =bld_type)) +
+   labs(title="Downtown, Nob Hill, N.Valley")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+BT_RR <-  ggplot(ass6_RIO_R_renters, aes(x =bld_type)) +
+   labs(title="Rio Rancho Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+BT_SV <-  ggplot(ass6_DT_NH_NV_renters, aes(x =bld_type)) +
+   labs(title="South Valley Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+plot_grid(BT_NEH, BT_SEH, ncol=1, align="v")
+plot_grid(BT_KAFB, BT_DT, ncol=1, align="v")
+plot_grid(BT_RR, BT_SV, ncol=1, align="v")
+```
+
+
+-------------------------------------------------------------------------------------
+
+#### **6. Decade Constructed**
+```{r, message = FALSE, results='hide'}
+ggplot(ass6_ABQs_renters, aes(x=when_built, y=PUMA_label)) +
+  
+  
+  labs(title="Rent Burden: All ABQ Renters")  +
+  geom_point(position = "jitter", size =2, alpha =.2, color = "darkslategray") +
+  scale_y_discrete(name="Neighborhood") +
+  scale_x_discrete(name ="") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 30, color="sienna", size =8)) 
+```
+
+```{r, message = FALSE, results= 'hide'}
+
+WB_NEH <-  ggplot(ass6_NEHeights_renters, aes(x =when_built)) +
+   labs(title="Northeast Heights Renters")  +
+  geom_bar(fill="olivedrab3", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+    scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+
+WB_SEH <-  ggplot(ass6_SEHeights_renters, aes(x =when_built)) +
+   labs(title="Southeast Heights Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+
+
+WB_KAFB <-  ggplot(ass6_KAFB_renters, aes(x =when_built)) +
+   labs(title="Kirtland AirForce Base/Gibson")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+
+WB_DT <-  ggplot(ass6_DT_NH_NV_renters, aes(x =when_built)) +
+   labs(title="Downtown, Nob Hill, N.Valley")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+WB_RR <-  ggplot(ass6_RIO_R_renters, aes(x =when_built)) +
+   labs(title="Rio Rancho Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+WB_SV <-  ggplot(ass6_DT_NH_NV_renters, aes(x =when_built)) +
+   labs(title="South Valley Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+plot_grid(WB_NEH, WB_SEH, ncol=1, align="v")
+plot_grid(WB_KAFB, WB_DT, ncol=1, align="v")
+plot_grid(WB_RR, WB_SV, ncol=1, align="v")
+```
+
+--------------------------------------------------------------------------------------------------------------
+
+#### **6. Education**
+```{r, message = FALSE, results='hide'}
+ggplot(ass6_ABQs_renters, aes(x=SCHL_simp, y=PUMA_label)) +
+  
+  
+  labs(title="Rent Burden: All ABQ Renters")  +
+  geom_point(position = "jitter", size =2, alpha =.2, color = "darkslategray") +
+  scale_y_discrete(name="Neighborhood") +
+  scale_x_discrete(name ="") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 30, color="sienna", size =8)) 
+```
+
+```{r, message = FALSE, results= 'hide'}
+
+WB_NEH <-  ggplot(ass6_NEHeights_renters, aes(x =SCHL_simp)) +
+   labs(title="Northeast Heights Renters")  +
+  geom_bar(fill="olivedrab3", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+    scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+
+WB_SEH <-  ggplot(ass6_SEHeights_renters, aes(x =SCHL_simp)) +
+   labs(title="Southeast Heights Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+
+
+WB_KAFB <-  ggplot(ass6_KAFB_renters, aes(x =SCHL_simp)) +
+   labs(title="Kirtland AirForce Base/Gibson")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+
+WB_DT <-  ggplot(ass6_DT_NH_NV_renters, aes(x =SCHL_simp)) +
+   labs(title="Downtown, Nob Hill, N.Valley")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+WB_RR <-  ggplot(ass6_RIO_R_renters, aes(x =SCHL_simp)) +
+   labs(title="Rio Rancho Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+WB_SV <-  ggplot(ass6_DT_NH_NV_renters, aes(x =SCHL_simp)) +
+   labs(title="South Valley Renters")  +
+  geom_bar(fill="lightskyblue", alpha =.5) +
+   theme(axis.text.x = element_text(angle = 90)) +
+   scale_x_discrete(name="") +
+       scale_y_continuous(name= "# Survey Respondants",
+                       breaks = seq(0,1000, by = 25),
+                     labels = paste(seq(0,1000, by = 25),
+                     "", sep = "")) +
+   coord_flip() +
+  theme_classic()
+
+plot_grid(WB_NEH, WB_SEH, ncol=1, align="v")
+plot_grid(WB_KAFB, WB_DT, ncol=1, align="v")
+plot_grid(WB_RR, WB_SV, ncol=1, align="v")
+
+```
+
+#### **8. Income**
+
+```{r, message = FALSE, results='hide'}
+HINCP_hist <- ggplot(ass6_ABQs_renters, aes(HINCP)) +
+  scale_fill_brewer(palette = "Spectral") +
+  geom_histogram(aes(fill= PUMA_label)) + 
+  labs(title="Household Income Dist of ABQ Renters")  +
+  scale_y_continuous(name="Number of Respondents") +
+  scale_x_continuous(name="Household Income") +
+  theme_minimal()
+```
+
+```{r, message = FALSE, results= 'hide'}
+PINCP_hist <- ggplot(ass6_ABQs_renters, aes(PINCP)) +
+  scale_fill_brewer(palette = "Spectral") +
+  geom_histogram(aes(fill= PUMA_label)) + 
+  labs(title="Individual Income Dist of ABQ Renters")  +
+  scale_y_continuous(name="Number of Respondents") +
+  scale_x_continuous(name="Personal Income")+
+  theme_minimal()
+```
+```{r, message = FALSE, results='hide'}
+income_per_person_hist <- ggplot(ass6_ABQs_renters, aes(income_per_person)) +
+  scale_fill_brewer(palette = "Spectral") +
+  geom_histogram(aes(fill= PUMA_label)) + 
+  labs(title="Household Income Per Person Dist of ABQ Renters")  +
+  scale_y_continuous(name="Number of Respondents") +
+  scale_x_continuous(name="Personal Income") +
+  theme_minimal()
+```
+```{r}
+HINCP_hist
+summary(ass6_ABQs_renters$HINCP)
+PINCP_hist
+summary(ass6_ABQs_renters$PINCP)
+income_per_person_hist
+summary(ass6_ABQs_renters$income_per_person)
+
+
+```
+
+#### **9. Age**
+
+```{r}
+AGEP_hist <- ggplot(ass6_ABQs_renters, aes(AGEP)) +
+  scale_fill_brewer(palette = "Spectral") +
+  geom_histogram(aes(fill= PUMA_label, breaks =100)) + 
+  labs(title="Age Dist of ABQ Renters")  +
+  scale_y_continuous(name="Number of Renters") +
+  scale_x_continuous(name="Age of Renter") +
+  theme_minimal()
+  AGEP_hist
+  summary(ass6_ABQs_renters$AGEP)
+```
+
+#### **10. Rent**
+
+```{r}
+RENT_hist <- ggplot(ass6_ABQs_renters, aes(RNTP)) +
+  scale_fill_brewer(palette = "Spectral") +
+  geom_histogram(aes(fill= PUMA_label)) + 
+  labs(title="Age Dist of ABQ Renters")  +
+  scale_y_continuous(name="Number of Renters") +
+  scale_x_continuous(name="Rent") +
+  theme_minimal()
+  RENT_hist
+```
+
+ABQ Rent Summary Stats:
+```{r}
+  summary(ass6_ABQs_renters$RNTP)
+
+```
+Northeast Heights Summary Stats:
+```{r}
+  summary(ass6_NEHeights_renters$RNTP)
+```
+
+Southeast Heights Summary Stats:
+```{r}
+  summary(ass6_SEHeights_renters$RNTP)
+```
+
+KAFB/Gibson Summary Stats:
+```{r}
+  summary(ass6_KAFB_renters$RNTP)
+```
+
+Downtown/Nob Hill/North Valley Summary Stats:
+```{r}
+  summary(ass6_DT_NH_NV_renters$RNTP)
+```
+
+South Valley Summary Stats:
+```{r}
+  summary(ass6_SVALLEY_renters$RNTP)
+```
+
+Rio Rancho Summary Stats:
+```{r}
+  summary(ass6_RIO_R_renters$RNTP)
+```
+## **Results: Part 1** 
+**Relationships Between Rent Burden & Other Variables in DataSet**
+
+For the first part of the analysis, I ran two types of relationships. First, for cases where I was comparing Rent Burden to a continuous variable, I used a Pearson's correlation which outputs both a correlation and whether or not the relationship is statistically significant. Second, for Rent Burden and categorical variables, I ran ANOVA tests which output whether or not the relationship is statistically significant. For both tests I am looking for a p-value of less than 0.05 to indicate statistic significance. 
+
+Following these calculations, I visualized several relationships that were of interest. 
+
+### **Pearson's Correlations**
+```{r}
+
+##Household Income
+cor_GRPIP_HINCP <- cor.test(ass6_ABQs_renters$GRPIP, ass6_ABQs_renters$HINCP) 
+
+##Personal Income
+cor_GRPIP_PINCP <- cor.test(ass6_ABQs_renters$GRPIP, ass6_ABQs_renters$PINCP) 
+
+###Income Per Person
+cor_GRPIP_ipp <- cor.test(ass6_ABQs_renters$GRPIP, ass6_ABQs_renters$income_per_person) 
+
+##AGEP
+cor_GRPIP_AGEP  <- cor.test(ass6_ABQs_renters$GRPIP, ass6_ABQs_renters$AGEP) 
+
+##RENT
+cor_GRPIP_RNTP  <- cor.test(ass6_ABQs_renters$GRPIP, ass6_ABQs_renters$RNTP)
+
+
+
+df_pcor_abq <- data.frame(
+  'variable' = c("Household Income", "Personal Income", "Income Per Person", "Age", "Rent"), 
+ 'correlation' = c(-0.5469677  , -0.3357144, -0.4577715, -0.4098563 , -0.06435763),
+ 'Pvalue' = c(2.2e-16, 2.2e-16, 2.2e-16, 0.05237627, 0.01712),
+  stringsAsFactors = FALSE)
+
+
+formattable(df_pcor_abq, list( 'Pvalue' = formatter("span", style = x ~ ifelse(x <= .05, style(color = "green", font.weight = "bold"), NA))))
+```
+Here I can see that the results of the Pearson's show that Income and Rent both have a statistically significant relationship with Rent Burden while age does not. For income we see an inverse correlation that shows as income increases, rent burden decreases. This relationship is closer to one (ie closer to perfectly correlated) when we look at Household Income and less correlated when we look at Personal Income. Rent Burden & Household Income per Person's correlation falls between the two other correlations for income. 
+
+Given that Household Income per Person does a better job at capturing unpaid labor, it is the variable that I will be using going forward in this analysis. 
+
+### **Anova Tests**
+```{r}
+## ANOVA TESTS
+abq_renters_aov <- aov(GRPIP ~ PUMA_label + race_ethn + SCHL_simp + NP_simp +bld_type + when_built + JWMNP_binned + bld_type, data = assignment6_vars)
+summary(abq_renters_aov)
+```
+
+The ANOVA test shows me that all of the variables are statistically significant with the exception of commute to work. 
+
+### **Visualizations of Selected Relationships**
+
+#### **Rent Burden + Race & Ethnicity**
+```{r}
+ggplot(ass6_ABQs_renters, aes(x =race_ethn, y = GRPIP)) +
+  geom_violin(color="darkslategray", size =1.2, alpha =.5) +
+  theme_minimal() +
+  scale_x_discrete(name = "Rental Type") +
+  scale_y_continuous(name = "% of Income Going to Rent",
+                     breaks = seq(0, 101, by = 10),
+                     label = paste(prettyNum(seq(0, 101, by = 10))))  + 
+   theme(axis.text.x = element_text(angle = 90)) +
+   geom_segment(
+                y=30, 
+                yend=30,
+                x=0,
+                xend=100,
+                alpha=.8,
+                size=1,
+                color ="lightgoldenrod3") +
+
+geom_segment(y=50, 
+                yend=50,
+                x=0,
+                xend=100,
+                alpha=.8,
+                size =2,
+                color ="lightgoldenrod3") +
+  geom_text(aes(label=str_wrap("Rent Burdened",4),
+                 y= 31,
+                 x=6.4), 
+                 size=2.5, 
+                 color ="black") +
+
+geom_text(aes(label=str_wrap("Severely Rent Burdened",4),
+                 y= 51,
+                 x=6.4), 
+                 size=2.5, 
+                 color ="black") 
+```
+
+#### **Rent Burden & Rent**
+```{r}
+
+##Thanks to Meghan Casey for this formatting scheme 
+ggplot(ass6_ABQs_renters, aes(x = RNTP, y = GRPIP)) +
+  geom_point(size = 3, alpha = 0.2, position = "jitter", color = "lightgoldenrod3") +
+  geom_smooth(color = "dimgray") +
+  theme_pander() +
+  scale_x_continuous(name = "Rent",
+                     breaks = seq(0, 2500, by = 500),
+                     label = paste("$", (prettyNum(seq(0, 2500, by = 500))))) +
+  scale_y_continuous(name = "% of Income Going to Rent",
+                     breaks = seq(0, 101, by = 10),
+                     label = paste(prettyNum(seq(0, 101, by = 10)))) +
+  
+  annotate(geom = "text", x = 10, y = 95,
+           label = paste("Correlation (95-percent confidence):",
+                         prettyNum(cor_GRPIP_RNTP$conf.int[1], digits = 3),
+                         "to",
+                         prettyNum(cor_GRPIP_RNTP$conf.int[2], digits = 3)), 
+           hjust = 0)
+```
+
+
+#### **Rent Burden & Income Per Person**
+```{r}
+ggplot(ass6_ABQs_renters, aes(x = income_per_person, y = GRPIP)) +
+  geom_point(size = 2.5, alpha = 0.2, position = "jitter", color = "lightseagreen") +
+  geom_smooth(color = "dimgray") +
+  theme_pander() +
+  scale_x_continuous(name = "Income per Person",
+                     breaks = seq(0, 100000, by = 50000),
+                     label = paste(seq(0, 100, by = 50),
+                                           "k", sep = "")) +
+  scale_y_continuous(name = "% of Income Going to Rent",
+                     breaks = seq(0, 101, by = 10),
+                     label = paste(prettyNum(seq(0, 101, by = 10)))) +
+  
+  annotate(geom = "text", x = 10, y = 95,
+           label = paste("Correlation (95-percent confidence):",
+                         prettyNum(cor_GRPIP_ipp$conf.int[1], digits = 3),
+                         "to",
+                         prettyNum(cor_GRPIP_ipp$conf.int[2], digits = 3)), 
+           hjust = 0)
+
+```
+
+
+
+
+
+#### **Rent Burden and Rental Type**
+```{r}
+ggplot(ass6_ABQs_renters, aes(x =bld_type, y = GRPIP)) +
+  geom_violin(color="sienna3", size =1.4) +
+  theme_minimal() +
+  scale_x_discrete(name = "Rental Type") +
+  scale_y_continuous(name = "% of Income Going to Rent",
+                     breaks = seq(0, 101, by = 10),
+                     label = paste(prettyNum(seq(0, 101, by = 10))))  + 
+   geom_segment(
+                y=30, 
+                yend=30,
+                x=0,
+                xend=100,
+                alpha=.8,
+                size=1,
+                color ="lightgoldenrod3") +
+
+geom_segment(y=50, 
+                yend=50,
+                x=0,
+                xend=100,
+                alpha=.8,
+                size =2,
+                color ="lightgoldenrod3") +
+  geom_text(aes(label=str_wrap("Rent Burdened",4),
+                 y= 31,
+                 x=3.4), 
+                 size=2.5, 
+                 color ="black") +
+
+geom_text(aes(label=str_wrap("Severely Rent Burdened",4),
+                 y= 51,
+                 x=3.4), 
+                 size=2.5, 
+                 color ="black") 
+```
+
+#### **Rent Burden & Household Size**
+##### **All Renters**
+```{r}
+ggplot(ass6_ABQs_renters, aes(x =NP_simp, y = GRPIP)) +
+  geom_violin(color="steelblue4", size =1.4) +
+  theme_minimal() +
+  scale_x_discrete(name = "Household Size") +
+  scale_y_continuous(name = "% of Income Going to Rent",
+                     breaks = seq(0, 101, by = 10),
+                     label = paste(prettyNum(seq(0, 101, by = 10))))  + 
+   geom_segment(
+                y=30, 
+                yend=30,
+                x=0,
+                xend=100,
+                alpha=.8,
+                size=1,
+                color ="sienna3") +
+
+geom_segment(
+                y=50, 
+                yend=50,
+                x=0,
+                xend=100,
+                alpha=.8,
+                size =2,
+                color ="sienna3")+
+  geom_text(aes(label=str_wrap("Rent Burdened",4),
+                 y= 31,
+                 x=3.4), 
+                 size=2.5, 
+                 color ="black") +
+
+geom_text(aes(label=str_wrap("Severely Rent Burdened",4),
+                 y= 51,
+                 x=3.4), 
+                 size=2.5, 
+                 color ="black") 
+```
+
+##### Northeast Heights
+```{r}
+ggplot(ass6_NEHeights_renters, aes(x =NP_simp, y = GRPIP)) +
+  geom_violin(color="lightseagreen", size =1.4) +
+  theme_minimal() +
+  scale_x_discrete(name = "Household Size") +
+  scale_y_continuous(name = "% of Income Going to Rent",
+                     breaks = seq(0, 101, by = 10),
+                     label = paste(prettyNum(seq(0, 101, by = 10))))  + 
+   geom_segment(
+                y=30, 
+                yend=30,
+                x=0,
+                xend=100,
+                alpha=.8,
+                size=1,
+                color ="sienna3") +
+
+geom_segment(
+                y=50, 
+                yend=50,
+                x=0,
+                xend=100,
+                alpha=.8,
+                size =2,
+                color ="sienna3") +
+  
+  geom_text(aes(label=str_wrap("Rent Burdened",4),
+                 y= 31,
+                 x=3.4), 
+                 size=2.5, 
+                 color ="black") +
+
+geom_text(aes(label=str_wrap("Severely Rent Burdened",4),
+                 y= 51,
+                 x=3.4), 
+                 size=2.5, 
+                 color ="black") 
+```
+
+##### KAFB/GIbson
+```{r}
+ggplot(ass6_KAFB_renters, aes(x =NP_simp, y = GRPIP)) +
+  geom_violin(color="lightseagreen", size =1.4) +
+  theme_minimal() +
+  scale_x_discrete(name = "Household Size") +
+  scale_y_continuous(name = "% of Income Going to Rent",
+                     breaks = seq(0, 101, by = 10),
+                     label = paste(prettyNum(seq(0, 101, by = 10)))) + 
+   geom_segment(
+                y=30, 
+                yend=30,
+                x=0,
+                xend=100,
+                alpha=.8,
+                size=1,
+                color ="sienna3") +
+
+geom_segment(
+                y=50, 
+                yend=50,
+                x=0,
+                xend=100,
+                alpha=.8,
+                size =2,
+                color ="sienna3") +
+  
+  geom_text(aes(label=str_wrap("Rent Burdened",4),
+                 y= 31,
+                 x=3.4), 
+                 size=2.5, 
+                 color ="black") +
+
+geom_text(aes(label=str_wrap("Severely Rent Burdened",4),
+                 y= 51,
+                 x=3.4), 
+                 size=2.5, 
+                 color ="black") 
+```
+
+##### South Valley
+```{r}
+ggplot(ass6_SVALLEY_renters, aes(x =NP_simp, y = GRPIP)) +
+  geom_violin(color="lightseagreen", size =1.4) +
+  theme_minimal() +
+  scale_x_discrete(name = "Household Size") +
+  scale_y_continuous(name = "% of Income Going to Rent",
+                     breaks = seq(0, 101, by = 10),
+                     label = paste(prettyNum(seq(0, 101, by = 10))))  + 
+   geom_segment(
+                y=30, 
+                yend=30,
+                x=0,
+                xend=100,
+                alpha=.8,
+                size=1,
+                color ="sienna3") +
+
+geom_segment(
+                y=50, 
+                yend=50,
+                x=0,
+                xend=100,
+                alpha=.8,
+                size =2,
+                color ="sienna3")+
+  geom_text(aes(label=str_wrap("Rent Burdened",4),
+                 y= 31,
+                 x=3.4), 
+                 size=2.5, 
+                 color ="black") +
+
+geom_text(aes(label=str_wrap("Severely Rent Burdened",4),
+                 y= 51,
+                 x=3.4), 
+                 size=2.5, 
+                 color ="black") 
+```
+
+##### Rio Rancho
+```{r}
+ggplot(ass6_RIO_R_renters, aes(x =NP_simp, y = GRPIP)) +
+  geom_violin(color="lightseagreen", size =1.4) +
+  theme_minimal() +
+  scale_x_discrete(name = "Household Size") +
+  scale_y_continuous(name = "% of Income Going to Rent",
+                     breaks = seq(0, 101, by = 10),
+                     label = paste(prettyNum(seq(0, 101, by = 10))))  + 
+   geom_segment(
+                y=30, 
+                yend=30,
+                x=0,
+                xend=100,
+                alpha=.8,
+                size=1,
+                color ="sienna3") +
+
+geom_segment(y=50, 
+                yend=50,
+                x=0,
+                xend=100,
+                alpha=.8,
+                size =2,
+                color ="sienna3") +
+  geom_text(aes(label=str_wrap("Rent Burdened",4),
+                 y= 31,
+                 x=3.4), 
+                 size=2.5, 
+                 color ="black") +
+
+geom_text(aes(label=str_wrap("Severely Rent Burdened",4),
+                 y= 51,
+                 x=3.4), 
+                 size=2.5, 
+                 color ="black") 
+```
+
+
+##### Southeast heights
+```{r}
+ggplot(ass6_SEHeights_renters, aes(x =NP_simp, y = GRPIP)) +
+  geom_violin(color="lightseagreen", size =1.4) +
+  theme_minimal() +
+  scale_x_discrete(name = "Household Size") +
+  scale_y_continuous(name = "% of Income Going to Rent",
+                     breaks = seq(0, 101, by = 10),
+                     label = paste(prettyNum(seq(0, 101, by = 10))))  + 
+   geom_segment(
+                y=30, 
+                yend=30,
+                x=0,
+                xend=100,
+                alpha=.8,
+                size=1,
+                color ="sienna3") +
+
+geom_segment(
+                y=50, 
+                yend=50,
+                x=0,
+                xend=100,
+                alpha=.8,
+                size =2,
+                color ="sienna3") +
+  geom_text(aes(label=str_wrap("Rent Burdened",4),
+                 y= 31,
+                 x=3.4), 
+                 size=2.5, 
+                 color ="black") +
+
+geom_text(aes(label=str_wrap("Severely Rent Burdened",4),
+                 y= 51,
+                 x=3.4), 
+                 size=2.5, 
+                 color ="black") 
+```
+
+##### Downtown + Nob Hill + North Valley 
+```{r}
+ggplot(ass6_DT_NH_NV_renters, aes(x =NP_simp, y = GRPIP)) +
+  geom_violin(color="lightseagreen", size =1.4) +
+  theme_minimal() +
+  scale_x_discrete(name = "Household Size") +
+  scale_y_continuous(name = "% of Income Going to Rent",
+                     breaks = seq(0, 101, by = 10),
+                     label = paste(prettyNum(seq(0, 101, by = 10))))  + 
+   geom_segment(
+                y=30, 
+                yend=30,
+                x=0,
+                xend=100,
+                alpha=.8,
+                size=1,
+                color ="sienna3") +
+
+geom_segment(
+                y=50, 
+                yend=50,
+                x=0,
+                xend=100,
+                alpha=.8,
+                size =2,
+                color ="sienna3") +
+  geom_text(aes(label=str_wrap("Rent Burdened",4),
+                 y= 31,
+                 x=3.4), 
+                 size=2.5, 
+                 color ="black") +
+
+geom_text(aes(label=str_wrap("Severely Rent Burdened",4),
+                 y= 51,
+                 x=3.4), 
+                 size=2.5, 
+                 color ="black") 
+```
+
+----------------------------------------------------------------------------------------
+
+## **Results: Part 2**  
+### ** Linear Regression Models**
+
+In this analysis I am using a linear regression model to predict rent burden. The following are used as base cases. 
+**Area:** Northeast Heights <br>
+**Household Size:** 1 Person <br>
+**Race & Ethnicity:** White (Non-Hispanic) (Chosen because non-hispanic whites are the largest share of population). <br>
+**Rental Type**: Single Family Home <br>
+**Education:** High School Diploma <br>
+
+
+
+####**Model1 --> Baseline**
+** R-Squared: .10**
+```{r}
+model_1 <- lm(GRPIP ~ PUMA_label + NP_simp + race_ethn + bld_type + when_built_simp + SCHL_simp, data =ass6_ABQs_renters)
+summary(model_1)
+```
+
+
+```{r}
+coeff_interact <- c(
+
+"Downtown, Nob Hill, N. Valley" = "PUMA_labelDowntown, Nob Hill, N.Valley",  
+"KAFB/Gibston" = "PUMA_labelKirtland AFB/Gibson",
+"Rio Rancho" = "PUMA_labelRio Rancho",                           
+"South Valley" = "PUMA_labelSouth Valley",
+"Southeast Heights" ="PUMA_labelSoutheast Heights",
+"2 Person HH" = "NP_simp2 people",
+"3+ Person HH" = "NP_simp3+ people",  
+"Asian" = "race_ethnAsian",
+"Hispanic (Non-White)" = "race_ethnHispanic (Non-White)",
+"Hispanic (white)" = "race_ethnHispanic (White))",
+"Native American" = "race_ethnNative American",
+"Multiracial/Other" = "race_ethnOther Race or Multiracial (NH)",  
+"Apartment" = "bld_typeApartment",
+"Mobile Home/Trailer/5th Wheel" = "bld_typeMobile Home/Trailer/5th Wheel",
+"Built more than 20 yo" = "when_built_simpOlder",
+"Assoc Degree" = "SCHL_simpAssoc. Degree",
+"Bach. Degree or higher" = "SCHL_simpBach Degree or Higher",
+"High School Dip." = "SCHL_simpHS Diploma",
+"No HS" = "SCHL_simpNo HS",
+"Some HS" = "SCHL_simpSome HS, No Diploma")
+
+
+plot_coefs(model_1,
+           coefs = coeff_interact,
+           plot.distributions = TRUE,
+           rescale.distributions = TRUE) +
+  scale_x_continuous(name = "Effect on Rent Burden")
+```
+
+**Results** 
+Looking at the results of our regression, we can make the following observations for the values that have confidence intervals that do not cross zero. For exact p-values, see above chart. 
+
+1. For someone who did not attend any high school (dropped out before 9th grade), we can expect them to spend on average 5% less of their income on rent than someone with a High School Diploma. On the other hand, for someone who has a Bachelors degree or higher, we expect them to spend 9.45% less of their income on rent than someone who only has a HS Diploma <br>
+
+2. Someone renting an apartment is likely to be spending on average 3.7% more of their income on rent than someone renting a single family home. Someone renting a mobile home/5th wheel/trailer is on average spending 11.43% more of their income on rent. 
+
+3. The only statistically significant relationship comparing race/ethnicity is that Asian individuals are on average spending 9.65% more of their income on rent than non-hispanic whites. However, note that the p-value is .043. It is also important to note that it is possible that there are relationships that are not stat significant in this dataset, however, this does not mean there is no relationship. Only that we cannot show one in this model. 
+
+4. Compared to the Northeast Heights we can see that renters in South Valley, KAFB/Gibson and Downtown/Nob Hill/North Valley on average are spending more of their income on rent. 
+
+5. Both renters with 2 people and 3+ people on average are spending a lower percentage of their income on rent. 
+
+#### **Model 2 --> Interaction Terms**
+**RSquared .16**
+
+This second model was created after seeing the stat sig relationship shown in the previous model between household size and rent burden. When adding an interaction term, I was able to find a better fitting model that can explain 16% of the variablity in Rent Burden.  
+```{r}
+model_2_abq <- lm(GRPIP ~ PUMA_label + NP_simp  + race_ethn + bld_type + when_built_simp + SCHL_simp + PUMA_label:NP_simp + bld_type:NP_simp + race_ethn:NP_simp + SCHL_simp:NP_simp, data =ass6_ABQs_renters)
+summary(model_2_abq)
+```
+### **Variations of Interaction Model**
+**The following three models are variations on the same interaction model**
+
+#### *Holding Everything But Education Constant* 
+```{r, message = FALSE, results='hide'}
+cat_plot(model_2_abq, pred = SCHL_simp, modx = NP_simp, interval = TRUE) +
+ scale_x_discrete(name = "Education Level") +
+  scale_y_continuous(name = "% of Income going to Rent",
+                     breaks = seq(0, 105, by = 10)) +
+  theme(axis.text.x = element_text(angle=65, vjust=0.6)) +
+  gghighlight(SCHL_simp =="No HS" | SCHL_simp == "Bach Degree or Higher")+
+  scale_color_discrete(name = "") +
+  scale_linetype_discrete(name = "") +
+  scale_fill_discrete(name = "") + 
+   geom_segment(name="Rent Burden",
+                y=30, 
+                yend=30,
+                x=0,
+                xend=100,
+                alpha=.8,
+                color ="pink") +
+
+geom_segment(name="Rent Burden",
+                y=50, 
+                yend=50,
+                x=0,
+                xend=100,
+                alpha=.8,
+                color ="pink")
+```
+
+#### Holding Everything but Neighborhood Constant
+```{r, message = FALSE, results='hide'}
+cat_plot(model_2_abq, pred = PUMA_label, modx = NP_simp, interval = TRUE) +
+ scale_x_discrete(name = "Education Level") +
+  scale_y_continuous(name = "% of Income going to Rent",
+                     breaks = seq(0, 105, by = 10)) +
+  theme(axis.text.x = element_text(angle=65, vjust=0.6)) +
+  scale_color_discrete(name = "") +
+  scale_linetype_discrete(name = "") +
+  scale_fill_discrete(name = "") + 
+   geom_segment(name="Rent Burden",
+                y=30, 
+                yend=30,
+                x=0,
+                xend=100,
+                alpha=.8,
+                color ="pink") +
+
+geom_segment(name="Rent Burden",
+                y=50, 
+                yend=50,
+                x=0,
+                xend=100,
+                alpha=.8,
+                color ="pink")
+```
+
+#### *Holding Everything But Rental Type Constant* 
+```{r, message = FALSE, results='hide'}
+cat_plot(model_2_abq, pred = bld_type, modx = NP_simp, interval = TRUE) +
+ scale_x_discrete(name = "Rental Type") +
+  scale_y_continuous(name = "% of Income going to Rent",
+                     breaks = seq(0, 105, by = 10)) +
+  theme(axis.text.x = element_text(angle=65, vjust=0.6)) +
+  scale_color_discrete(name = "") +
+  scale_linetype_discrete(name = "") +
+  scale_fill_discrete(name = "") + 
+   geom_segment(name="Rent Burden",
+                y=30, 
+                yend=30,
+                x=0,
+                xend=100,
+                alpha=.8,
+                color ="pink") +
+
+geom_segment(name="Rent Burden",
+                y=50, 
+                yend=50,
+                x=0,
+                xend=100,
+                alpha=.8,
+                color ="pink")
+```
+
+## **Results: Part 3**
+
+The following models take the baseline model and show for some of the neighborhood. Given the small sample sizes, I decided to stick with baseline over showing the interaction plots for the individual scales. 
+
+
+### **South Valley**
+#### South Valley Baseline Model
+```{r, message = FALSE, results='hide'}
+
+model_SV_b <- lm(GRPIP ~  NP_simp + race_ethn + bld_type + when_built_simp + SCHL_simp, data =ass6_SVALLEY_renters)
+summary(model_SV_b)
+```
+
+
+```{r}
+coeff_interact_NHoods <- c(
+
+
+"2 Person HH" = "NP_simp2 people",
+"3+ Person HH" = "NP_simp3+ people",  
+"Asian" = "race_ethnAsian",
+"Hispanic (Non-White)" = "race_ethnHispanic (Non-White)",
+"Hispanic (white)" = "race_ethnHispanic (White))",
+"Native American" = "race_ethnNative American",
+"Multiracial/Other" = "race_ethnOther Race or Multiracial (NH)",  
+"Apartment" = "bld_typeApartment",
+"Mobile Home/Trailer/5th Wheel" = "bld_typeMobile Home/Trailer/5th Wheel",
+"Built more than 20 yo" = "when_built_simpOlder",
+"Assoc Degree" = "SCHL_simpAssoc. Degree",
+"Bach. Degree or higher" = "SCHL_simpBach Degree or Higher",
+"High School Dip." = "SCHL_simpHS Diploma",
+"No HS" = "SCHL_simpNo HS",
+"Some HS" = "SCHL_simpSome HS, No Diploma")
+
+
+plot_coefs(model_SV_b,
+           coefs = coeff_interact_NHoods,
+           plot.distributions = TRUE,
+           rescale.distributions = TRUE) +
+  scale_x_continuous(name = "Effect on Rent Burden")
+```
+
+
+
+### **Rio Rancho**
+#### Rio Rancho Baseline Model
+```{r, message = FALSE, results='hide'}
+
+model_RioR_b <- lm(GRPIP ~  NP_simp + race_ethn + bld_type + when_built_simp + SCHL_simp, data =ass6_RIO_R_renters)
+summary(model_RioR_b)
+```
+
+
+```{r}
+coeff_interact_NHoods <- c(
+
+
+"2 Person HH" = "NP_simp2 people",
+"3+ Person HH" = "NP_simp3+ people",  
+"Asian" = "race_ethnAsian",
+"Hispanic (Non-White)" = "race_ethnHispanic (Non-White)",
+"Hispanic (white)" = "race_ethnHispanic (White))",
+"Native American" = "race_ethnNative American",
+"Multiracial/Other" = "race_ethnOther Race or Multiracial (NH)",  
+"Apartment" = "bld_typeApartment",
+"Mobile Home/Trailer/5th Wheel" = "bld_typeMobile Home/Trailer/5th Wheel",
+"Built more than 20 yo" = "when_built_simpOlder",
+"Assoc Degree" = "SCHL_simpAssoc. Degree",
+"Bach. Degree or higher" = "SCHL_simpBach Degree or Higher",
+"High School Dip." = "SCHL_simpHS Diploma",
+"No HS" = "SCHL_simpNo HS",
+"Some HS" = "SCHL_simpSome HS, No Diploma")
+
+
+plot_coefs(model_RioR_b,
+           coefs = coeff_interact_NHoods,
+           plot.distributions = TRUE,
+           rescale.distributions = TRUE) +
+  scale_x_continuous(name = "Effect on Rent Burden")
+```
+
+### **Southeast Heights**
+#### Rio Rancho Baseline Model
+```{r, message = FALSE, results='hide'}
+
+model_SEH_b <- lm(GRPIP ~  NP_simp + race_ethn + bld_type + when_built_simp + SCHL_simp, data =ass6_RIO_R_renters)
+summary(model_SEH_b)
+```
+
+
+```{r}
+coeff_interact_NHoods <- c(
+
+
+"2 Person HH" = "NP_simp2 people",
+"3+ Person HH" = "NP_simp3+ people",  
+"Asian" = "race_ethnAsian",
+"Hispanic (Non-White)" = "race_ethnHispanic (Non-White)",
+"Hispanic (white)" = "race_ethnHispanic (White))",
+"Native American" = "race_ethnNative American",
+"Multiracial/Other" = "race_ethnOther Race or Multiracial (NH)",  
+"Apartment" = "bld_typeApartment",
+"Mobile Home/Trailer/5th Wheel" = "bld_typeMobile Home/Trailer/5th Wheel",
+"Built more than 20 yo" = "when_built_simpOlder",
+"Assoc Degree" = "SCHL_simpAssoc. Degree",
+"Bach. Degree or higher" = "SCHL_simpBach Degree or Higher",
+"High School Dip." = "SCHL_simpHS Diploma",
+"No HS" = "SCHL_simpNo HS",
+"Some HS" = "SCHL_simpSome HS, No Diploma")
+
+
+plot_coefs(model_SEH_b,
+           coefs = coeff_interact_NHoods,
+           plot.distributions = TRUE,
+           rescale.distributions = TRUE) +
+  scale_x_continuous(name = "Effect on Rent Burden")
+```
+
+
+
+### **Downtown/ Nob Hill/ North Valley**
+####  Baseline Model
+```{r, message = FALSE, results='hide'}
+
+model_DT <- lm(GRPIP ~  NP_simp + race_ethn + bld_type + when_built_simp + SCHL_simp, data =ass6_DT_NH_NV_renters)
+summary(model_DT)
+```
+
+
+```{r}
+coeff_interact_NHoods <- c(
+
+
+"2 Person HH" = "NP_simp2 people",
+"3+ Person HH" = "NP_simp3+ people",  
+"Asian" = "race_ethnAsian",
+"Hispanic (Non-White)" = "race_ethnHispanic (Non-White)",
+"Hispanic (white)" = "race_ethnHispanic (White))",
+"Native American" = "race_ethnNative American",
+"Multiracial/Other" = "race_ethnOther Race or Multiracial (NH)",  
+"Apartment" = "bld_typeApartment",
+"Mobile Home/Trailer/5th Wheel" = "bld_typeMobile Home/Trailer/5th Wheel",
+"Built more than 20 yo" = "when_built_simpOlder",
+"Assoc Degree" = "SCHL_simpAssoc. Degree",
+"Bach. Degree or higher" = "SCHL_simpBach Degree or Higher",
+"High School Dip." = "SCHL_simpHS Diploma",
+"No HS" = "SCHL_simpNo HS",
+"Some HS" = "SCHL_simpSome HS, No Diploma")
+
+
+plot_coefs(model_DT,
+           coefs = coeff_interact_NHoods,
+           plot.distributions = TRUE,
+           rescale.distributions = TRUE) +
+  scale_x_continuous(name = "Effect on Rent Burden")
+```
+
+
+## **Discussion**
+To recap, my hypothesis before starting this analysis was that there are stat sig relationships between Rent Burden and variables such as education, neighborhood and race & ethnicity.  The data shows that there are indeed some relationships within these groups, but not every category is stat significant. For example, while having dropped out of school by 9th grade or having a BA or higher has a stat sig impact for percent of rent going to income, within some of the other categories (such as having an associates degree) there are less obvious relationships. 
+
+Something that stands out in this analysis is that something that has a significant impact of rent burden is the household structure. In all models that were run in this analysis (ie for citywide and within each neighborhood) households with 2 or more people were on average, less rent burdened than renters who were not sharing a household. This pushes back on the general narrative of rent burden hitting hardest for families who need larger apartments and indicates that there may be overlooked issues facing single renters. This analysis could be strengthened by looking more carefully at household structure by pulling in variables such as whether or not someone is living with roommates. It would also be useful to know whether these individuals are spending more of their income on rent out of absolute necessity or out of desire to have certain amenities. 
+
+A challenge of this analysis is the small sample size of observations, especially when broken down to renters per neighborhood. It is quite plausible that with a large dataset, we would see stat sig relationships that are currently not demonstrable. 
+
+## **Where do we go next**
+
+In 2018 when Albuquerque was working on reforming their zoning code, there was ruckus at 1 Civic Plaza. While Tim Keller and the planning department were proposing certain changes that would work towards creating more affordable housing in the city--such as expanding where accessory dwelling units were to be allowed or construction of new affordable units--there were quite a few who were not happy with these proposals. This is to be expected, in the United States (and yes we are still in the US), virtually no change to the built environment is proposed without public pushback in this current moment, especially if that change has to do with affordable housing. To advocate for affordable housing in the city then, it is imperative that housing advocates and the general public are equipped with in-depth knowledge of what the city looks like for renters and low-income households.  If our city is to thrive and provide for all Burqueños, we must know what the existing conditions and relationships are. We cannot rely on the assumption that albuquerque has inexpensive housing that is in reach of all. Sure we might have inexpensive housing compared to Arizona, but that still doesn't mean its affordable. 
+
+What I hope this analysis shows is that while some of what we expect to be true based on our everyday experience of the city is true, some of it is not. And more importantly, there are things we as Burqueños do not already know. Looking at what Albuquerque can do in making affordable units available to single renters may be an unexpected way to work towards the city we all want. 
