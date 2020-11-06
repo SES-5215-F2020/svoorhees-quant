@@ -1,0 +1,87 @@
+---
+title: "Raster_Interpolation"
+author: "Sage Grey"
+date: "11/2/2020"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(sf)
+library(leaflet)
+library(htmltools)
+library(htmlwidgets)
+library(raster)
+library(gstat)
+library(spatial)
+library(ggplot2)
+library(ggthemes)
+library(ggspatial)
+```
+
+
+## Download Tract Boundaries & Join DataFrames & Set Projection Vars
+
+Question: What is the difference between st_read and read_sf
+
+```{r}
+
+WGS84 <- "+proj=merc +lon_0=0 +k=1 +x_0=0 +y_0=0 +a=6378137 +b=6378137 +units=m +no_defs"
+
+nm_tracts <- st_read("C:/Users/sageg/Desktop/svoorhees-quant/svoorhees-vis/Red Cross Data/NM_Tract/cb_2019_35_tract_500k.shp") 
+write_csv(nm_tracts, "nm_tracts")
+
+nm_tracts <- nm_tracts%>%
+  st_transform(WGS84)
+
+rc_risk_data <- st_read("C:/Users/sageg/Desktop/svoorhees-quant/svoorhees-vis/Red Cross Data/tabletracts.csv") %>%
+  filter(state == 35)
+
+write_csv(rc_risk_data, "rc_risk_data")
+
+
+nm_rc_risk_data <-rc_risk_data%>%
+left_join(nm_tracts, by =c("tract_geoid" = "GEOID"))%>%
+dplyr::select(tract, tract_geoid, county, risk, rank, geometry)
+```
+
+```{r}
+leaflet(nm_tracts) %>%
+  addProviderTiles(providers$Stamen.TonerLite) %>%
+    addPolygons(highlightOptions = highlightOptions(fillColor = "goldenrod3", 
+                                                  fillOpacity = 1),
+              label = ~NAME, 
+              weight = 1) 
+```
+
+```{r}
+leaflet(nm_rc_risk_data) %>%
+  addProviderTiles(providers$Stamen.TonerLite) %>%
+    addPolygons(highlightOptions = highlightOptions(fillColor = "yellow", 
+                                                  fillOpacity = 1),
+              label = ~risk, 
+              weight = 1) 
+```
+
+
+##
+```{r}
+ggplot(nm_rc_risk_data) +
+  coord_sf(crs=WGS84) +
+  geom_sf(color ="white", aes( fill= risk)) +
+  theme_map() 
+```
+
+
+
+
+```{r}
+NM_RISK <- leaflet(nm_rc_risk_data, options = leafletOptions(minZoom = 8, maxZoom = 18)) %>%
+  addProviderTiles(providers$Stamen.TonerLite) %>%
+  addPolygons(Color = "lightseagreen", stroke = FALSE, highlightOptions = highlightOptions(fillColor = risk, fillOpacity = 1),label =~describe) %>%
+  setMaxBounds( lng1 = -104,
+                lat1 = 34,
+                lng2 = -108,
+                lat2 = 36) %>%
+    addControl("Residential Areas: ADU Allowed", position = "topright")
+```
